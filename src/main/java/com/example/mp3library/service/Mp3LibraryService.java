@@ -8,9 +8,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Stream;
 
-import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
@@ -44,32 +42,31 @@ public class Mp3LibraryService
 
     private MetadataSnapshot fallbackMetadata(Path filePath)
     {
-      String fileName = filePath.getFileName().toString();
-      String fallbackTitle = fileName.toLowerCase().endsWith(".mp3") ? fileName.substring(0, fileName.length() - 4)
+      final var fileName = filePath.getFileName().toString();
+      final var fallbackTitle = fileName.toLowerCase().endsWith(".mp3") ? fileName.substring(0, fileName.length() - 4)
           : fileName;
-      return new MetadataSnapshot(fallbackTitle, "", "", "", "", "", "");
+      return new MetadataSnapshot(fallbackTitle, "", "", 0, "", "", "");
     }
 
     @Transactional(readOnly = true)
-    public Optional<Mp3FileRecord> findById(Long id)
+    public Optional<Mp3FileRecord> findById(String id)
     {
       return repository.findById(id);
     }
 
     @Transactional
-    public Optional<Mp3FileRecord> lookupAndApply(Long id) throws IOException
+    public Optional<Mp3FileRecord> lookupAndApply(String id) throws IOException
     {
-      Mp3FileRecord record = repository.findById(id)
+      final var record = repository.findById(id)
           .orElseThrow(() -> new IllegalArgumentException("MP3 record not found: " + id));
 
-      Optional<MetadataSnapshot> snapshot = lookupService.lookup(record.getTitle(), record.getArtist(),
-          record.getAlbum());
+      final var snapshot = lookupService.lookup(record.getTitle(), record.getArtist(), record.getAlbum());
       if (snapshot.isEmpty())
       {
         return Optional.empty();
       }
 
-      MetadataSnapshot metadata = snapshot.get();
+      final var metadata = snapshot.get();
       if (StringUtils.hasText(metadata.title()))
       {
         record.setTitle(metadata.title());
@@ -82,10 +79,7 @@ public class Mp3LibraryService
       {
         record.setAlbum(metadata.album());
       }
-      if (StringUtils.hasText(metadata.track()))
-      {
-        record.setTrack(metadata.track());
-      }
+      record.setTrack(metadata.track());
       if (StringUtils.hasText(metadata.year()))
       {
         record.setYear(metadata.year());
@@ -120,17 +114,17 @@ public class Mp3LibraryService
     {
       try
       {
-        AudioFile audioFile = AudioFileIO.read(filePath.toFile());
-        Tag tag = audioFile.getTag();
+        final var audioFile = AudioFileIO.read(filePath.toFile());
+        final var tag = audioFile.getTag();
         if (tag == null)
         {
           return fallbackMetadata(filePath);
         }
         return new MetadataSnapshot(readTag(tag, FieldKey.TITLE), readTag(tag, FieldKey.ARTIST),
-            readTag(tag, FieldKey.ALBUM), readTag(tag, FieldKey.TRACK), readTag(tag, FieldKey.YEAR),
+            readTag(tag, FieldKey.ALBUM), Integer.decode(readTag(tag, FieldKey.TRACK)), readTag(tag, FieldKey.YEAR),
             readTag(tag, FieldKey.GENRE), readTag(tag, FieldKey.COMMENT));
       }
-      catch (Exception ex)
+      catch (final Exception ex)
       {
         return fallbackMetadata(filePath);
       }
@@ -142,7 +136,7 @@ public class Mp3LibraryService
       {
         return clean(tag.getFirst(key));
       }
-      catch (Exception ex)
+      catch (final Exception ex)
       {
         return "";
       }
@@ -150,8 +144,8 @@ public class Mp3LibraryService
 
     private void saveOrUpdateFromFile(Path filePath)
     {
-      String normalizedPath = filePath.toAbsolutePath().normalize().toString();
-      Mp3FileRecord record = repository.findByCurrentPath(normalizedPath).orElseGet(Mp3FileRecord::new);
+      final var normalizedPath = filePath.toAbsolutePath().normalize().toString();
+      final var record = repository.findByCurrentPath(normalizedPath).orElseGet(Mp3FileRecord::new);
 
       if (!StringUtils.hasText(record.getOriginalPath()))
       {
@@ -159,7 +153,7 @@ public class Mp3LibraryService
       }
       record.setCurrentPath(normalizedPath);
 
-      MetadataSnapshot metadata = readMetadata(filePath);
+      final var metadata = readMetadata(filePath);
       record.setTitle(metadata.title());
       record.setArtist(metadata.artist());
       record.setAlbum(metadata.album());
@@ -174,15 +168,15 @@ public class Mp3LibraryService
     @Transactional
     public int scanDirectory(String directoryPath) throws IOException
     {
-      Path root = Paths.get(directoryPath).toAbsolutePath().normalize();
+      final var root = Paths.get(directoryPath).toAbsolutePath().normalize();
       if (!Files.exists(root) || !Files.isDirectory(root))
       {
         throw new IllegalArgumentException("Directory does not exist: " + root);
       }
 
-      int[] processed = new int[]
+      final int[] processed =
       { 0 };
-      try (Stream<Path> stream = Files.walk(root))
+      try (var stream = Files.walk(root))
       {
         stream.filter(Files::isRegularFile).filter(path -> path.getFileName().toString().toLowerCase().endsWith(".mp3"))
             .forEach(path ->
@@ -197,26 +191,25 @@ public class Mp3LibraryService
     @Transactional(readOnly = true)
     public List<Mp3FileRecord> search(String artist, String album, String title, String pathContains)
     {
-      Specification<Mp3FileRecord> spec = (root, query, cb) ->
+      final Specification<Mp3FileRecord> spec = (root, query, cb) ->
       {
-        List<Predicate> predicates = new ArrayList<>();
+        final List<Predicate> predicates = new ArrayList<>();
         if (StringUtils.hasText(artist))
         {
-          predicates.add(cb.like(cb.lower(root.get("artist")), "%" + artist.toLowerCase() + "%"));
+          predicates.add(cb.like(root.get("artist"), "%" + artist + "%"));
         }
         if (StringUtils.hasText(album))
         {
-          predicates.add(cb.like(cb.lower(root.get("album")), "%" + album.toLowerCase() + "%"));
+          predicates.add(cb.like(root.get("album"), "%" + album + "%"));
         }
         if (StringUtils.hasText(title))
         {
-          predicates.add(cb.like(cb.lower(root.get("title")), "%" + title.toLowerCase() + "%"));
+          predicates.add(cb.like(root.get("title"), "%" + title + "%"));
         }
         if (StringUtils.hasText(pathContains))
         {
-          String lowered = "%" + pathContains.toLowerCase() + "%";
-          predicates.add(cb.or(cb.like(cb.lower(root.get("originalPath")), lowered),
-              cb.like(cb.lower(root.get("currentPath")), lowered)));
+          final var matcher = "%" + pathContains + "%";
+          predicates.add(cb.or(cb.like(root.get("originalPath"), matcher), cb.like(root.get("currentPath"), matcher)));
         }
         return cb.and(predicates.toArray(Predicate[]::new));
       };
@@ -230,30 +223,30 @@ public class Mp3LibraryService
       {
         tag.setField(key, clean(value));
       }
-      catch (Exception ignored)
+      catch (final Exception ignored)
       {
         // Keep updates resilient across different tag versions.
       }
     }
 
     @Transactional
-    public Mp3FileRecord updateRecord(Long id, Mp3FileRecord update, String requestedPath) throws IOException
+    public Mp3FileRecord updateRecord(String id, Mp3FileRecord update, String requestedPath) throws IOException
     {
-      Mp3FileRecord record = repository.findById(id)
+      final var record = repository.findById(id)
           .orElseThrow(() -> new IllegalArgumentException("MP3 record not found: " + id));
 
       record.setTitle(clean(update.getTitle()));
       record.setArtist(clean(update.getArtist()));
       record.setAlbum(clean(update.getAlbum()));
-      record.setTrack(clean(update.getTrack()));
+      record.setTrack(update.getTrack());
       record.setYear(clean(update.getYear()));
       record.setGenre(clean(update.getGenre()));
       record.setCommentText(clean(update.getCommentText()));
 
       if (StringUtils.hasText(requestedPath))
       {
-        Path current = Paths.get(record.getCurrentPath());
-        Path target = Paths.get(requestedPath).toAbsolutePath().normalize();
+        final var current = Paths.get(record.getCurrentPath());
+        final var target = Paths.get(requestedPath).toAbsolutePath().normalize();
         if (!current.equals(target))
         {
           moveIfPossible(current, target);
@@ -267,25 +260,25 @@ public class Mp3LibraryService
 
     private void writeTagsIfPossible(Mp3FileRecord record) throws IOException
     {
-      Path path = Paths.get(record.getCurrentPath());
+      final var path = Paths.get(record.getCurrentPath());
       if (!Files.exists(path))
       {
         return;
       }
       try
       {
-        AudioFile audioFile = AudioFileIO.read(path.toFile());
-        Tag tag = audioFile.getTagOrCreateAndSetDefault();
+        final var audioFile = AudioFileIO.read(path.toFile());
+        final var tag = audioFile.getTagOrCreateAndSetDefault();
         setTag(tag, FieldKey.TITLE, record.getTitle());
         setTag(tag, FieldKey.ARTIST, record.getArtist());
         setTag(tag, FieldKey.ALBUM, record.getAlbum());
-        setTag(tag, FieldKey.TRACK, record.getTrack());
+        setTag(tag, FieldKey.TRACK, record.getTrack().toString());
         setTag(tag, FieldKey.YEAR, record.getYear());
         setTag(tag, FieldKey.GENRE, record.getGenre());
         setTag(tag, FieldKey.COMMENT, record.getCommentText());
         audioFile.commit();
       }
-      catch (Exception ex)
+      catch (final Exception ex)
       {
         throw new IOException("Unable to write tags for file: " + record.getCurrentPath(), ex);
       }

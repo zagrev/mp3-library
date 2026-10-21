@@ -31,29 +31,23 @@ import lombok.Data;
 })
 public class Mp3FileRecord
   {
-
-    @Column(columnDefinition = "TEXT")
     private String album;
-    @Column(columnDefinition = "TEXT")
     private String artist;
-    @Column(columnDefinition = "TEXT")
+    @Column(length = 1000000)
     private String commentText;
     private Instant createdAt;
-    @Column(name = "file_path_current", columnDefinition = "TEXT")
+    @Column(name = "file_path_current", length = 1000000)
     private String currentPath;
-    @Column(columnDefinition = "TEXT")
     private String genre;
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
-    @Column(name = "file_path_original", columnDefinition = "TEXT")
+    @Column(name = "file_path_original", length = 1000000)
     private String originalPath;
-    @Column(columnDefinition = "TEXT")
     private String title;
-    @Column(columnDefinition = "TEXT")
-    private String track;
+    private Integer track;
     private Instant updatedAt;
-    @Column(name = "release_year", columnDefinition = "TEXT")
+    @Column(name = "release_year")
     private String year;
 
     @PrePersist

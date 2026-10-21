@@ -30,7 +30,7 @@ public class MusicBrainzLookupService
 
     private String buildQuery(String title, String artist, String album)
     {
-      StringBuilder sb = new StringBuilder();
+      final var sb = new StringBuilder();
       if (StringUtils.hasText(title))
       {
         sb.append("recording:").append(quoteTerm(title));
@@ -61,43 +61,43 @@ public class MusicBrainzLookupService
         return Optional.empty();
       }
 
-      String query = buildQuery(title, artist, album);
-      String url = UriComponentsBuilder.fromHttpUrl(MUSIC_BRAINZ_URL).queryParam("query", query)
+      final var query = buildQuery(title, artist, album);
+      final var url = UriComponentsBuilder.fromHttpUrl(MUSIC_BRAINZ_URL).queryParam("query", query)
           .queryParam("fmt", "json").queryParam("limit", 1).encode(StandardCharsets.UTF_8).toUriString();
 
-      HttpHeaders headers = new HttpHeaders();
+      final var headers = new HttpHeaders();
       headers.set("User-Agent", "mp3-library/0.0.1 (local-dev)");
 
       try
       {
-        ResponseEntity<JsonNode> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers),
+        final ResponseEntity<JsonNode> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers),
             JsonNode.class);
-        JsonNode root = response.getBody();
+        final var root = response.getBody();
         if (root == null || !root.has("recordings") || root.path("recordings").isEmpty())
         {
           return Optional.empty();
         }
 
-        JsonNode firstRecording = root.path("recordings").get(0);
-        String resolvedTitle = textOrBlank(firstRecording.path("title"));
-        String resolvedArtist = "";
-        JsonNode artistCredit = firstRecording.path("artist-credit");
+        final var firstRecording = root.path("recordings").get(0);
+        final var resolvedTitle = textOrBlank(firstRecording.path("title"));
+        var resolvedArtist = "";
+        final var artistCredit = firstRecording.path("artist-credit");
         if (artistCredit.isArray() && !artistCredit.isEmpty())
         {
           resolvedArtist = textOrBlank(artistCredit.get(0).path("name"));
         }
 
-        String resolvedAlbum = "";
-        JsonNode releases = firstRecording.path("releases");
+        var resolvedAlbum = "";
+        final var releases = firstRecording.path("releases");
         if (releases.isArray() && !releases.isEmpty())
         {
           resolvedAlbum = textOrBlank(releases.get(0).path("title"));
         }
 
         return Optional.of(new MetadataSnapshot(prefer(resolvedTitle, title), prefer(resolvedArtist, artist),
-            prefer(resolvedAlbum, album), "", "", "", ""));
+            prefer(resolvedAlbum, album), 0, "", "", ""));
       }
-      catch (RestClientException ex)
+      catch (final RestClientException ex)
       {
         return Optional.empty();
       }
@@ -105,7 +105,7 @@ public class MusicBrainzLookupService
 
     private String prefer(String candidate, String fallback)
     {
-      return StringUtils.hasText(candidate) ? candidate : (fallback == null ? "" : fallback);
+      return StringUtils.hasText(candidate) ? candidate : fallback == null ? "" : fallback;
     }
 
     private String quoteTerm(String input)

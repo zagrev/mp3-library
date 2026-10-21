@@ -7,8 +7,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import com.example.mp3library.model.Mp3FileRecord;
 
-public interface Mp3FileRepository extends JpaRepository<Mp3FileRecord, Long>, JpaSpecificationExecutor<Mp3FileRecord>
+public interface Mp3FileRepository extends JpaRepository<Mp3FileRecord, String>, JpaSpecificationExecutor<Mp3FileRecord>
   {
-
     Optional<Mp3FileRecord> findByCurrentPath(String currentPath);
   }

@@ -6,7 +6,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Stream;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -35,7 +34,7 @@ public class Mp3WebController
     }
 
     @GetMapping("/mp3/{id}")
-    public String edit(@PathVariable Long id, Model model, RedirectAttributes redirectAttributes)
+    public String edit(@PathVariable String id, Model model, RedirectAttributes redirectAttributes)
     {
       return service.findById(id).map(record ->
       {
@@ -53,8 +52,8 @@ public class Mp3WebController
         @RequestParam(defaultValue = "") String title, @RequestParam(defaultValue = "") String path,
         @RequestParam(defaultValue = "") String browsePath, Model model)
     {
-      List<Mp3FileRecord> records = service.search(artist, album, title, path);
-      Path browseRoot = resolveBrowsePath(browsePath);
+      final var records = service.search(artist, album, title, path);
+      final var browseRoot = resolveBrowsePath(browsePath);
 
       model.addAttribute("browsePath", browseRoot.toString());
       model.addAttribute("browseParentPath", browseRoot.getParent() == null ? "" : browseRoot.getParent().toString());
@@ -69,7 +68,7 @@ public class Mp3WebController
 
     private List<DirectoryOption> listDirectories(Path root)
     {
-      try (Stream<Path> stream = Files.list(root))
+      try (var stream = Files.list(root))
       {
         return stream.filter(Files::isDirectory)
             .sorted(Comparator.comparing(
@@ -79,18 +78,18 @@ public class Mp3WebController
                 path.getFileName() == null ? path.toString() : path.getFileName().toString(), path.toString()))
             .toList();
       }
-      catch (IOException ex)
+      catch (final IOException ex)
       {
         return List.of();
       }
     }
 
     @PostMapping("/mp3/{id}/lookup")
-    public String lookup(@PathVariable Long id, RedirectAttributes redirectAttributes)
+    public String lookup(@PathVariable String id, RedirectAttributes redirectAttributes)
     {
       try
       {
-        boolean updated = service.lookupAndApply(id).isPresent();
+        final var updated = service.lookupAndApply(id).isPresent();
         if (updated)
         {
           redirectAttributes.addFlashAttribute("message", "Lookup succeeded and metadata was applied.");
@@ -113,14 +112,14 @@ public class Mp3WebController
       {
         if (browsePath != null && !browsePath.isBlank())
         {
-          Path requested = Paths.get(browsePath).toAbsolutePath().normalize();
+          final var requested = Paths.get(browsePath).toAbsolutePath().normalize();
           if (Files.exists(requested) && Files.isDirectory(requested))
           {
             return requested;
           }
         }
       }
-      catch (Exception ignored)
+      catch (final Exception ignored)
       {
         // Fall back to user home when the incoming path cannot be parsed.
       }
@@ -133,7 +132,7 @@ public class Mp3WebController
     {
       try
       {
-        int scanned = service.scanDirectory(directoryPath);
+        final var scanned = service.scanDirectory(directoryPath);
         redirectAttributes.addFlashAttribute("message", "Scanned " + scanned + " MP3 files from " + directoryPath);
       }
       catch (IllegalArgumentException | IOException ex)
@@ -144,14 +143,14 @@ public class Mp3WebController
     }
 
     @PostMapping("/mp3/{id}/update")
-    public String update(@PathVariable Long id, @RequestParam String title, @RequestParam String artist,
-        @RequestParam String album, @RequestParam String track, @RequestParam String year, @RequestParam String genre,
+    public String update(@PathVariable String id, @RequestParam String title, @RequestParam String artist,
+        @RequestParam String album, @RequestParam Integer track, @RequestParam String year, @RequestParam String genre,
         @RequestParam(name = "commentText") String commentText, @RequestParam(name = "currentPath") String currentPath,
         RedirectAttributes redirectAttributes)
     {
       try
       {
-        Mp3FileRecord update = new Mp3FileRecord();
+        final var update = new Mp3FileRecord();
         update.setTitle(title);
         update.setArtist(artist);
         update.setAlbum(album);
