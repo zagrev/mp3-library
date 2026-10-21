@@ -1,6 +1,7 @@
 package com.example.mp3library.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -117,14 +118,36 @@ class MusicBrainzLookupServiceTest
   }
 
   @Test
-  void lookupReturnsEmptyWhenClientThrows()
+  void lookupThrowsUnavailableWhenClientThrows()
   {
     final var service = new MusicBrainzLookupService(restTemplate);
     when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(HttpEntity.class), eq(com.fasterxml.jackson.databind.JsonNode.class)))
         .thenThrow(new RestClientException("boom"));
 
-    final var result = service.lookup("Title", "Artist", "Album");
+    assertThrows(MetadataLookupUnavailableException.class, () -> service.lookup("Title", "Artist", "Album"));
+  }
 
-    assertTrue(result.isEmpty());
+  @Test
+  void healthCheckPassesWhenRequestSucceeds() throws Exception
+  {
+    final var service = new MusicBrainzLookupService(restTemplate);
+    final var mapper = new ObjectMapper();
+    when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(HttpEntity.class), eq(com.fasterxml.jackson.databind.JsonNode.class)))
+        .thenReturn(ResponseEntity.ok(mapper.readTree("{\"recordings\":[]}")));
+
+    service.checkHealth();
+
+    verify(restTemplate).exchange(anyString(), eq(HttpMethod.GET), any(HttpEntity.class),
+        eq(com.fasterxml.jackson.databind.JsonNode.class));
+  }
+
+  @Test
+  void healthCheckThrowsUnavailableWhenClientThrows()
+  {
+    final var service = new MusicBrainzLookupService(restTemplate);
+    when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(HttpEntity.class), eq(com.fasterxml.jackson.databind.JsonNode.class)))
+        .thenThrow(new RestClientException("down"));
+
+    assertThrows(MetadataLookupUnavailableException.class, service::checkHealth);
   }
 }

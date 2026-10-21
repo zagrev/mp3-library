@@ -139,6 +139,12 @@ public class Mp3LibraryService
       return lookupService.lookup(record.getTitle(), record.getArtist(), record.getAlbum());
     }
 
+    @Transactional(readOnly = true)
+    public void checkLookupHealth()
+    {
+      lookupService.checkHealth();
+    }
+
     private void moveIfPossible(Path source, Path target) throws IOException
     {
       if (!Files.exists(source))

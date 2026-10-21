@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.example.mp3library.model.Mp3FileRecord;
+import com.example.mp3library.service.MetadataLookupUnavailableException;
 import com.example.mp3library.service.Mp3LibraryService;
 
 @Controller
@@ -192,6 +193,30 @@ public class Mp3WebController
       {
         redirectAttributes.addFlashAttribute("error", ex.getMessage());
       }
+      catch (MetadataLookupUnavailableException ex)
+      {
+        redirectAttributes.addFlashAttribute("error", "MusicBrainz lookup request failed. Please try again.");
+      }
+      return "redirect:/mp3/" + id + buildEditQuery(artist, album, title, path, page, size, sort, dir);
+    }
+
+    @PostMapping("/mp3/{id}/lookup/health")
+    public String lookupHealth(@PathVariable String id, @RequestParam(defaultValue = "") String artist,
+        @RequestParam(defaultValue = "") String album, @RequestParam(defaultValue = "") String title,
+        @RequestParam(defaultValue = "") String path, @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "25") int size, @RequestParam(defaultValue = "artist") String sort,
+        @RequestParam(defaultValue = "asc") String dir, RedirectAttributes redirectAttributes)
+    {
+      try
+      {
+        service.checkLookupHealth();
+        redirectAttributes.addFlashAttribute("message", "MusicBrainz lookup service is reachable.");
+      }
+      catch (MetadataLookupUnavailableException ex)
+      {
+        redirectAttributes.addFlashAttribute("error", "MusicBrainz lookup request failed. Please try again.");
+      }
+
       return "redirect:/mp3/" + id + buildEditQuery(artist, album, title, path, page, size, sort, dir);
     }
 

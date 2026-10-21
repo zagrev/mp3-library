@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,6 +38,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.example.mp3library.model.Mp3FileRecord;
 import com.example.mp3library.service.MetadataSnapshot;
+import com.example.mp3library.service.MetadataLookupUnavailableException;
 import com.example.mp3library.service.Mp3LibraryService;
 
 @WebMvcTest(Mp3WebController.class)
@@ -160,6 +162,17 @@ class Mp3WebControllerTest
     }
 
     @Test
+    void lookupUnavailableAddsServiceError() throws Exception
+    {
+      when(service.lookupPreview("12")).thenThrow(new MetadataLookupUnavailableException("MusicBrainz lookup request failed.",
+          new RuntimeException("network")));
+
+      mockMvc.perform(post("/mp3/12/lookup")).andExpect(status().is3xxRedirection())
+          .andExpect(redirectedUrlPattern("/mp3/12*"))
+          .andExpect(flash().attribute("error", "MusicBrainz lookup request failed. Please try again."));
+    }
+
+    @Test
     void lookupSuccessAddsMessage() throws Exception
     {
       when(service.lookupPreview("9")).thenReturn(Optional.of(
@@ -186,6 +199,27 @@ class Mp3WebControllerTest
 
       mockMvc.perform(post("/scan").param("directoryPath", "C:\\bad")).andExpect(status().is3xxRedirection())
           .andExpect(redirectedUrl("/")).andExpect(flash().attribute("error", "Directory does not exist"));
+    }
+
+    @Test
+    void lookupHealthSuccessAddsReachableMessage() throws Exception
+    {
+      mockMvc.perform(post("/mp3/9/lookup/health")).andExpect(status().is3xxRedirection())
+          .andExpect(redirectedUrlPattern("/mp3/9*"))
+          .andExpect(flash().attribute("message", "MusicBrainz lookup service is reachable."));
+
+      verify(service, times(1)).checkLookupHealth();
+    }
+
+    @Test
+    void lookupHealthFailureAddsServiceError() throws Exception
+    {
+      doThrow(new MetadataLookupUnavailableException("MusicBrainz lookup request failed.", new RuntimeException("network")))
+          .when(service).checkLookupHealth();
+
+      mockMvc.perform(post("/mp3/9/lookup/health")).andExpect(status().is3xxRedirection())
+          .andExpect(redirectedUrlPattern("/mp3/9*"))
+          .andExpect(flash().attribute("error", "MusicBrainz lookup request failed. Please try again."));
     }
 
     @Test

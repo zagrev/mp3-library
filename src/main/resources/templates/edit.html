@@ -166,6 +166,18 @@
     <input type="hidden" name="dir" th:value="${dir}">
     <button type="submit">Lookup metadata in MusicBrainz (Preview Only)</button>
 </form>
+
+<form th:action="@{'/mp3/' + ${record.id} + '/lookup/health'}" method="post" style="margin-top: 0.5rem;">
+    <input type="hidden" name="artist" th:value="${artist}">
+    <input type="hidden" name="album" th:value="${album}">
+    <input type="hidden" name="title" th:value="${title}">
+    <input type="hidden" name="path" th:value="${path}">
+    <input type="hidden" name="page" th:value="${page}">
+    <input type="hidden" name="size" th:value="${size}">
+    <input type="hidden" name="sort" th:value="${sort}">
+    <input type="hidden" name="dir" th:value="${dir}">
+    <button type="submit">Check MusicBrainz Connectivity</button>
+</form>
 </main>
 <script>
 (() => {

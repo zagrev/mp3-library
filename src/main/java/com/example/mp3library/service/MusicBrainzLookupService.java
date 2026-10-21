@@ -3,6 +3,8 @@ package com.example.mp3library.service;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -18,6 +20,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 @Service
 public class MusicBrainzLookupService
   {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(MusicBrainzLookupService.class);
 
     private static final String MUSIC_BRAINZ_URL = "https://musicbrainz.org/ws/2/recording/";
 
@@ -62,16 +66,10 @@ public class MusicBrainzLookupService
       }
 
       final var query = buildQuery(title, artist, album);
-      final var url = UriComponentsBuilder.fromUriString(MUSIC_BRAINZ_URL).queryParam("query", query)
-          .queryParam("fmt", "json").queryParam("limit", 1).encode(StandardCharsets.UTF_8).toUriString();
-
-      final var headers = new HttpHeaders();
-      headers.set("User-Agent", "mp3-library/0.0.1 (local-dev)");
 
       try
       {
-        final ResponseEntity<JsonNode> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers),
-            JsonNode.class);
+        final ResponseEntity<JsonNode> response = executeLookupRequest(query);
         final var root = response.getBody();
         if (root == null || !root.has("recordings") || root.path("recordings").isEmpty())
         {
@@ -99,8 +97,33 @@ public class MusicBrainzLookupService
       }
       catch (final RestClientException ex)
       {
-        return Optional.empty();
+        LOGGER.warn("MusicBrainz lookup request failed for query: {}", query, ex);
+        throw new MetadataLookupUnavailableException("MusicBrainz lookup request failed.", ex);
       }
+    }
+
+    public void checkHealth()
+    {
+      final var query = "recording:\"test\"";
+      try
+      {
+        executeLookupRequest(query);
+      }
+      catch (final RestClientException ex)
+      {
+        LOGGER.warn("MusicBrainz health check failed.", ex);
+        throw new MetadataLookupUnavailableException("MusicBrainz lookup request failed.", ex);
+      }
+    }
+
+    private ResponseEntity<JsonNode> executeLookupRequest(String query)
+    {
+      final var url = UriComponentsBuilder.fromUriString(MUSIC_BRAINZ_URL).queryParam("query", query)
+          .queryParam("fmt", "json").queryParam("limit", 1).encode(StandardCharsets.UTF_8).toUriString();
+
+      final var headers = new HttpHeaders();
+      headers.set("User-Agent", "mp3-library/0.0.1 (local-dev)");
+      return restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), JsonNode.class);
     }
 
     private String prefer(String candidate, String fallback)
