@@ -11,6 +11,9 @@
         .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem; }
         .message { padding: 0.5rem; margin-bottom: 1rem; background: #e6ffed; }
         .error { padding: 0.5rem; margin-bottom: 1rem; background: #ffeef0; }
+        .browser { border: 1px solid #ccc; padding: 0.8rem; margin: 1rem 0; background: #fafafa; }
+        .browser table { margin-top: 0.6rem; }
+        .browser-actions { display: flex; gap: 0.4rem; }
     </style>
 </head>
 <body>
@@ -24,6 +27,45 @@
     <input id="directoryPath" name="directoryPath" type="text" size="90" placeholder="C:\\music\\collection" required>
     <button type="submit">Scan</button>
 </form>
+
+<div class="browser">
+    <h2>Browse Server Directories</h2>
+    <form method="get" action="/" style="margin-bottom: 0.5rem;">
+        <label for="browsePath">Current folder:</label>
+        <input id="browsePath" name="browsePath" type="text" size="90" th:value="${browsePath}">
+        <button type="submit">Open</button>
+    </form>
+    <form method="get" action="/" th:if="${browseParentPath != ''}" style="margin-bottom: 0.5rem;">
+        <input type="hidden" name="browsePath" th:value="${browseParentPath}">
+        <button type="submit">Up One Level</button>
+    </form>
+
+    <table>
+        <thead>
+        <tr>
+            <th>Directory</th>
+            <th>Path</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="dir : ${browseDirectories}">
+            <td th:text="${dir.name}"></td>
+            <td th:text="${dir.fullPath}"></td>
+            <td class="browser-actions">
+                <form method="get" action="/">
+                    <input type="hidden" name="browsePath" th:value="${dir.fullPath}">
+                    <button type="submit">Open</button>
+                </form>
+                <form method="post" action="/scan">
+                    <input type="hidden" name="directoryPath" th:value="${dir.fullPath}">
+                    <button type="submit">Scan Here</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
 
 <h2>Filter</h2>
 <form method="get" action="/">
