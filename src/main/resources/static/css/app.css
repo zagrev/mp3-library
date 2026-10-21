@@ -1,0 +1,170 @@
+:root {
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-alt: #f8fafc;
+  --text: #1f2937;
+  --muted: #4b5563;
+  --border: #d1d5db;
+  --primary: #0f62fe;
+  --primary-hover: #0353e9;
+  --success-bg: #e8f5e9;
+  --success-text: #1b5e20;
+  --error-bg: #fdecea;
+  --error-text: #8a1f17;
+  --warning-bg: #fff8e1;
+  --warning-text: #7a5a00;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 1.5rem;
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.4;
+}
+
+main {
+  margin: 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+h1,
+h2 {
+  margin-top: 0;
+}
+
+a {
+  color: var(--primary);
+}
+
+a:hover {
+  color: var(--primary-hover);
+}
+
+form {
+  margin: 0.75rem 0;
+}
+
+label {
+  font-weight: 600;
+}
+
+input[type="text"],
+input[type="number"],
+textarea,
+select {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+textarea:focus,
+select:focus,
+button:focus,
+a:focus {
+  outline: 3px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+button {
+  min-height: 2.25rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--primary-hover);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border: 1px solid var(--border);
+  padding: 0.45rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--surface-alt);
+  white-space: nowrap;
+}
+
+.message,
+.error,
+.lookup-note {
+  padding: 0.6rem 0.7rem;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+}
+
+.message {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.error {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.lookup-note {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.5rem;
+}
+
+.row {
+  margin-bottom: 0.7rem;
+}
+
+.actions,
+.browser-actions,
+.pager {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+input.changed,
+textarea.changed,
+select.changed,
+.changed {
+  background: #fff6bf;
+  border-color: #d4b106;
+}
+
+.muted {
+  color: var(--muted);
+}

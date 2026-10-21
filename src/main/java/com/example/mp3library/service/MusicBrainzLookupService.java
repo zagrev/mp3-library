@@ -95,7 +95,7 @@ public class MusicBrainzLookupService
         }
 
         return Optional.of(new MetadataSnapshot(prefer(resolvedTitle, title), prefer(resolvedArtist, artist),
-            prefer(resolvedAlbum, album), 0, "", "", ""));
+            prefer(resolvedAlbum, album), 0, "", "", "", "", "", 0, 0, 0, "", "{}"));
       }
       catch (final RestClientException ex)
       {

@@ -1,6 +1,7 @@
 package com.example.mp3library.web;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -12,6 +13,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -58,7 +60,8 @@ class Mp3WebControllerTest
       when(service.findById("4")).thenReturn(Optional.of(record));
 
       mockMvc.perform(get("/mp3/4")).andExpect(status().isOk()).andExpect(view().name("edit"))
-          .andExpect(model().attributeExists("record"));
+          .andExpect(model().attributeExists("record"))
+          .andExpect(content().string(containsString("/css/app.css")));
     }
 
     @Test
@@ -106,7 +109,8 @@ class Mp3WebControllerTest
           .andExpect(status().isOk()).andExpect(view().name("index"))
           .andExpect(model().attributeExists("records", "page", "size", "totalPages", "hasPrevious", "hasNext"))
           .andExpect(model().attribute("page", 0)).andExpect(model().attribute("size", 25))
-          .andExpect(model().attribute("sort", "artist")).andExpect(model().attribute("dir", "asc"));
+          .andExpect(model().attribute("sort", "artist")).andExpect(model().attribute("dir", "asc"))
+          .andExpect(content().string(containsString("/css/app.css")));
 
       verify(service, times(1)).searchPaged("A", "B", "C", "D", 0, 25, "artist", "asc");
     }
@@ -134,7 +138,32 @@ class Mp3WebControllerTest
 
       mockMvc.perform(get("/browse").param("browsePath", browseRoot.toString())).andExpect(status().isOk())
           .andExpect(view().name("browse"))
-          .andExpect(model().attributeExists("browsePath", "browseParentPath", "browseDirectories"));
+          .andExpect(model().attributeExists("browsePath", "browseParentPath", "browseDirectories"))
+          .andExpect(content().string(containsString("/css/app.css")));
+    }
+
+    @Test
+    void scanSelectedDirectoriesUsesRequestSelection() throws Exception
+    {
+      when(service.scanDirectory("C:\\music\\A")).thenReturn(2);
+      when(service.scanDirectory("C:\\music\\B")).thenReturn(3);
+
+      mockMvc
+          .perform(post("/browse/scan-selected").param("browsePath", "C:\\music")
+              .param("selectedPaths", "C:\\music\\A", "C:\\music\\B"))
+          .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/browse?browsePath=C%3A%5Cmusic"))
+          .andExpect(flash().attribute("message", "Scanned 5 MP3 files from 2 selected directories."));
+
+      verify(service, times(1)).scanDirectory("C:\\music\\A");
+      verify(service, times(1)).scanDirectory("C:\\music\\B");
+    }
+
+    @Test
+    void scanSelectedDirectoriesWithNoSelectionShowsError() throws Exception
+    {
+      mockMvc.perform(post("/browse/scan-selected").param("browsePath", "C:\\music"))
+          .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/browse?browsePath=C%3A%5Cmusic"))
+          .andExpect(flash().attribute("error", "No directories selected."));
     }
 
     @Test
@@ -161,7 +190,7 @@ class Mp3WebControllerTest
     void lookupSuccessAddsMessage() throws Exception
     {
       when(service.lookupPreview("9")).thenReturn(Optional.of(new MetadataSnapshot("Title", "Artist", "Album", 1,
-          "2024", "Rock", "Comment")));
+          "2024", "Rock", "Comment", "", "", 0, 0, 0, "", "{}")));
 
       mockMvc.perform(post("/mp3/9/lookup")).andExpect(status().is3xxRedirection())
           .andExpect(redirectedUrlPattern("/mp3/9*"))

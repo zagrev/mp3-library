@@ -98,6 +98,37 @@ public class Mp3WebController
       return "browse";
     }
 
+    @PostMapping("/browse/scan-selected")
+    public String scanSelectedBrowsePaths(@RequestParam(defaultValue = "") String browsePath,
+        @RequestParam(name = "selectedPaths", required = false) List<String> selectedPaths,
+        RedirectAttributes redirectAttributes)
+    {
+      if (selectedPaths == null || selectedPaths.isEmpty())
+      {
+        redirectAttributes.addFlashAttribute("error", "No directories selected.");
+        return "redirect:/browse" + (browsePath.isBlank() ? "" : "?browsePath=" + encode(browsePath));
+      }
+
+      int scannedTotal = 0;
+      int scannedDirs = 0;
+      for (final var selectedPath : selectedPaths)
+      {
+        try
+        {
+          scannedTotal += service.scanDirectory(selectedPath);
+          scannedDirs++;
+        }
+        catch (IllegalArgumentException | IOException ex)
+        {
+          redirectAttributes.addFlashAttribute("error", ex.getMessage());
+          return "redirect:/browse" + (browsePath.isBlank() ? "" : "?browsePath=" + encode(browsePath));
+        }
+      }
+      redirectAttributes.addFlashAttribute("message",
+          "Scanned " + scannedTotal + " MP3 files from " + scannedDirs + " selected directories.");
+      return "redirect:/browse" + (browsePath.isBlank() ? "" : "?browsePath=" + encode(browsePath));
+    }
+
     private List<DirectoryOption> listDirectories(Path root)
     {
       try (var stream = Files.list(root))
@@ -137,6 +168,19 @@ public class Mp3WebController
           redirectAttributes.addFlashAttribute("lookupYear", metadata.year());
           redirectAttributes.addFlashAttribute("lookupGenre", metadata.genre());
           redirectAttributes.addFlashAttribute("lookupCommentText", metadata.commentText());
+          redirectAttributes.addFlashAttribute("lookupAlbumArtist", metadata.albumArtist());
+          redirectAttributes.addFlashAttribute("lookupComposer", metadata.composer());
+          redirectAttributes.addFlashAttribute(
+              "lookupDiscNumber", metadata.discNumber() == null || metadata.discNumber() <= 0 ? ""
+                  : metadata.discNumber().toString());
+          redirectAttributes
+              .addFlashAttribute("lookupDiscTotal",
+                  metadata.discTotal() == null || metadata.discTotal() <= 0 ? "" : metadata.discTotal().toString());
+          redirectAttributes.addFlashAttribute(
+              "lookupTrackTotal", metadata.trackTotal() == null || metadata.trackTotal() <= 0 ? ""
+                  : metadata.trackTotal().toString());
+          redirectAttributes.addFlashAttribute("lookupLyrics", metadata.lyrics());
+          redirectAttributes.addFlashAttribute("lookupExtraMetadataJson", metadata.extraMetadataJson());
           redirectAttributes.addFlashAttribute("message", "Lookup completed. Review highlighted changes, then save.");
         }
         else
@@ -160,6 +204,13 @@ public class Mp3WebController
       final var lookupYear = stringValue(model.asMap().get("lookupYear"));
       final var lookupGenre = stringValue(model.asMap().get("lookupGenre"));
       final var lookupCommentText = stringValue(model.asMap().get("lookupCommentText"));
+      final var lookupAlbumArtist = stringValue(model.asMap().get("lookupAlbumArtist"));
+      final var lookupComposer = stringValue(model.asMap().get("lookupComposer"));
+      final var lookupDiscNumber = stringValue(model.asMap().get("lookupDiscNumber"));
+      final var lookupDiscTotal = stringValue(model.asMap().get("lookupDiscTotal"));
+      final var lookupTrackTotal = stringValue(model.asMap().get("lookupTrackTotal"));
+      final var lookupLyrics = stringValue(model.asMap().get("lookupLyrics"));
+      final var lookupExtraMetadataJson = stringValue(model.asMap().get("lookupExtraMetadataJson"));
 
       model.addAttribute("lookupTitle", lookupTitle);
       model.addAttribute("lookupArtist", lookupArtist);
@@ -168,6 +219,13 @@ public class Mp3WebController
       model.addAttribute("lookupYear", lookupYear);
       model.addAttribute("lookupGenre", lookupGenre);
       model.addAttribute("lookupCommentText", lookupCommentText);
+      model.addAttribute("lookupAlbumArtist", lookupAlbumArtist);
+      model.addAttribute("lookupComposer", lookupComposer);
+      model.addAttribute("lookupDiscNumber", lookupDiscNumber);
+      model.addAttribute("lookupDiscTotal", lookupDiscTotal);
+      model.addAttribute("lookupTrackTotal", lookupTrackTotal);
+      model.addAttribute("lookupLyrics", lookupLyrics);
+      model.addAttribute("lookupExtraMetadataJson", lookupExtraMetadataJson);
 
       model.addAttribute("titleChanged", isChanged(record.getTitle(), lookupTitle));
       model.addAttribute("artistChanged", isChanged(record.getArtist(), lookupArtist));
@@ -176,6 +234,13 @@ public class Mp3WebController
       model.addAttribute("yearChanged", isChanged(record.getYear(), lookupYear));
       model.addAttribute("genreChanged", isChanged(record.getGenre(), lookupGenre));
       model.addAttribute("commentChanged", isChanged(record.getCommentText(), lookupCommentText));
+      model.addAttribute("albumArtistChanged", isChanged(record.getAlbumArtist(), lookupAlbumArtist));
+      model.addAttribute("composerChanged", isChanged(record.getComposer(), lookupComposer));
+      model.addAttribute("discNumberChanged", isChanged(stringValue(record.getDiscNumber()), lookupDiscNumber));
+      model.addAttribute("discTotalChanged", isChanged(stringValue(record.getDiscTotal()), lookupDiscTotal));
+      model.addAttribute("trackTotalChanged", isChanged(stringValue(record.getTrackTotal()), lookupTrackTotal));
+      model.addAttribute("lyricsChanged", isChanged(record.getLyrics(), lookupLyrics));
+      model.addAttribute("extraMetadataChanged", isChanged(record.getExtraMetadataJson(), lookupExtraMetadataJson));
     }
 
     private boolean isChanged(String original, String preview)
@@ -235,7 +300,15 @@ public class Mp3WebController
     @PostMapping("/mp3/{id}/update")
     public String update(@PathVariable String id, @RequestParam String title, @RequestParam String artist,
         @RequestParam String album, @RequestParam Integer track, @RequestParam String year, @RequestParam String genre,
-        @RequestParam(name = "commentText") String commentText, @RequestParam(name = "currentPath") String currentPath,
+        @RequestParam(name = "commentText") String commentText,
+        @RequestParam(name = "albumArtist", defaultValue = "") String albumArtist,
+        @RequestParam(name = "composer", defaultValue = "") String composer,
+        @RequestParam(name = "discNumber", required = false) Integer discNumber,
+        @RequestParam(name = "discTotal", required = false) Integer discTotal,
+        @RequestParam(name = "trackTotal", required = false) Integer trackTotal,
+        @RequestParam(name = "lyrics", defaultValue = "") String lyrics,
+        @RequestParam(name = "extraMetadataJson", defaultValue = "{}") String extraMetadataJson,
+        @RequestParam(name = "currentPath") String currentPath,
         @RequestParam(name = "catalogArtist", defaultValue = "") String catalogArtist,
         @RequestParam(name = "catalogAlbum", defaultValue = "") String catalogAlbum,
         @RequestParam(name = "catalogTitle", defaultValue = "") String catalogTitle,
@@ -256,6 +329,13 @@ public class Mp3WebController
         update.setYear(year);
         update.setGenre(genre);
         update.setCommentText(commentText);
+        update.setAlbumArtist(albumArtist);
+        update.setComposer(composer);
+        update.setDiscNumber(discNumber);
+        update.setDiscTotal(discTotal);
+        update.setTrackTotal(trackTotal);
+        update.setLyrics(lyrics);
+        update.setExtraMetadataJson(extraMetadataJson);
         service.updateRecord(id, update, currentPath);
         redirectAttributes.addFlashAttribute("message", "Record updated");
       }

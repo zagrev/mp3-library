@@ -51,6 +51,14 @@ class Mp3LibraryServiceTest {
         assertEquals(record.getYear(), record.getOriginalYear());
         assertEquals(record.getGenre(), record.getOriginalGenre());
         assertEquals(record.getCommentText(), record.getOriginalCommentText());
+        assertEquals(record.getAlbumArtist(), record.getOriginalAlbumArtist());
+        assertEquals(record.getComposer(), record.getOriginalComposer());
+        assertEquals(record.getDiscNumber(), record.getOriginalDiscNumber());
+        assertEquals(record.getDiscTotal(), record.getOriginalDiscTotal());
+        assertEquals(record.getTrackTotal(), record.getOriginalTrackTotal());
+        assertEquals(record.getLyrics(), record.getOriginalLyrics());
+        assertEquals(record.getExtraMetadataJson(), record.getOriginalExtraMetadataJson());
+        assertNotNull(record.getExtraMetadataJson());
 
         List<Mp3FileRecord> byPath = service.search("", "", "", "Artist One");
         assertFalse(byPath.isEmpty());

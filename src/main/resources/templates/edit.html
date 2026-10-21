@@ -2,25 +2,59 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Edit MP3 Record</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 2rem; }
-        .row { margin-bottom: 0.7rem; }
-        input[type="text"] { width: 100%; max-width: 950px; padding: 0.35rem; }
-        label { display: block; margin-bottom: 0.2rem; font-weight: bold; }
-        .message { padding: 0.5rem; margin-bottom: 1rem; background: #e6ffed; }
-        .error { padding: 0.5rem; margin-bottom: 1rem; background: #ffeef0; }
-        .actions { display: flex; gap: 1rem; margin-top: 1rem; }
-        .changed { background: #fff6bf; border: 1px solid #d4b106; }
-        .lookup-note { margin-top: 0.4rem; color: #8a6d3b; font-size: 0.9rem; }
-    </style>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
+<main>
 <p><a th:href="${backToCatalogUrl}">Back to catalog</a></p>
 <h1>Edit MP3 Record</h1>
 
 <div th:if="${message}" class="message" th:text="${message}"></div>
 <div th:if="${error}" class="error" th:text="${error}"></div>
+
+<style>
+    .tab-buttons {
+        display: flex;
+        gap: 0.25rem;
+        margin: 0.8rem 0 0;
+        border-bottom: 1px solid var(--border);
+    }
+    .tab-button {
+        appearance: none;
+        background: var(--surface-alt);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-bottom: none;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        min-height: 2.1rem;
+        padding: 0.45rem 0.8rem;
+        cursor: pointer;
+        font-weight: 500;
+    }
+    .tab-button:hover {
+        background: #eef2f7;
+    }
+    .tab-button.active,
+    .tab-button[aria-selected="true"] {
+        background: var(--surface);
+        font-weight: 700;
+        position: relative;
+        top: 1px;
+    }
+    .tab-button.has-changes { box-shadow: inset 0 -2px 0 #d4b106; }
+    .tab-panel { display: none; }
+    .tab-panel.active {
+        display: block;
+        border: 1px solid var(--border);
+        border-top: none;
+        padding: 0.8rem;
+        background: var(--surface);
+        margin-bottom: 0.7rem;
+    }
+</style>
 
 <form th:action="@{'/mp3/' + ${record.id} + '/update'}" method="post">
     <input type="hidden" name="catalogArtist" th:value="${artist}">
@@ -33,46 +67,90 @@
     <input type="hidden" name="catalogDir" th:value="${dir}">
     <div class="row">
         <label>Original Path</label>
-        <input type="text" th:value="${record.originalPath}" readonly>
+        <input id="originalPath" type="text" th:value="${record.originalPath}" readonly>
     </div>
     <div class="row">
         <label>Current Path (update to move file)</label>
-        <input type="text" name="currentPath" th:value="${record.currentPath}">
+        <input id="currentPath" type="text" name="currentPath" th:value="${record.currentPath}">
     </div>
-    <div class="row">
-        <label>Artist</label>
-        <input type="text" name="artist" th:value="${artistChanged ? lookupArtist : record.artist}" th:classappend="${artistChanged} ? 'changed' : ''">
-    </div>
-    <div class="row">
-        <label>Album</label>
-        <input type="text" name="album" th:value="${albumChanged ? lookupAlbum : record.album}" th:classappend="${albumChanged} ? 'changed' : ''">
-    </div>
-    <div class="row">
-        <label>Title</label>
-        <input type="text" name="title" th:value="${titleChanged ? lookupTitle : record.title}" th:classappend="${titleChanged} ? 'changed' : ''">
-    </div>
-    <div class="row">
-        <label>Track</label>
-        <input type="text" name="track" th:value="${trackChanged ? lookupTrack : record.track}" th:classappend="${trackChanged} ? 'changed' : ''">
-    </div>
-    <div class="row">
-        <label>Year</label>
-        <input type="text" name="year" th:value="${yearChanged ? lookupYear : record.year}" th:classappend="${yearChanged} ? 'changed' : ''">
-    </div>
-    <div class="row">
-        <label>Genre</label>
-        <input type="text" name="genre" th:value="${genreChanged ? lookupGenre : record.genre}" th:classappend="${genreChanged} ? 'changed' : ''">
-    </div>
-    <div class="row">
-        <label>Comment</label>
-        <input type="text" name="commentText" th:value="${commentChanged ? lookupCommentText : record.commentText}" th:classappend="${commentChanged} ? 'changed' : ''">
+    <div class="tab-buttons" role="tablist" aria-label="Metadata sections">
+        <button type="button" role="tab" aria-selected="true" class="tab-button active" data-tab-target="core-tags" th:classappend="${titleChanged or artistChanged or albumChanged or trackChanged or yearChanged or genreChanged or commentChanged} ? ' has-changes' : ''">Core Tags<span th:if="${titleChanged or artistChanged or albumChanged or trackChanged or yearChanged or genreChanged or commentChanged}"> *</span></button>
+        <button type="button" role="tab" aria-selected="false" class="tab-button" data-tab-target="extended-tags" th:classappend="${albumArtistChanged or composerChanged or discNumberChanged or discTotalChanged or trackTotalChanged or lyricsChanged} ? ' has-changes' : ''">Extended Tags<span th:if="${albumArtistChanged or composerChanged or discNumberChanged or discTotalChanged or trackTotalChanged or lyricsChanged}"> *</span></button>
+        <button type="button" role="tab" aria-selected="false" class="tab-button" data-tab-target="additional-tags" th:classappend="${extraMetadataChanged} ? ' has-changes' : ''">Additional Metadata<span th:if="${extraMetadataChanged}"> *</span></button>
     </div>
 
-    <p class="lookup-note" th:if="${titleChanged or artistChanged or albumChanged or trackChanged or yearChanged or genreChanged or commentChanged}">
+    <section id="core-tags" class="tab-panel active">
+        <div class="row">
+            <label>Artist</label>
+            <input type="text" name="artist" th:value="${artistChanged ? lookupArtist : record.artist}" th:attr="data-original=${record.originalArtist}" th:classappend="${artistChanged} ? 'changed' : ''">
+        </div>
+        <div class="row">
+            <label>Album</label>
+            <input type="text" name="album" th:value="${albumChanged ? lookupAlbum : record.album}" th:attr="data-original=${record.originalAlbum}" th:classappend="${albumChanged} ? 'changed' : ''">
+        </div>
+        <div class="row">
+            <label>Title</label>
+            <input type="text" name="title" th:value="${titleChanged ? lookupTitle : record.title}" th:attr="data-original=${record.originalTitle}" th:classappend="${titleChanged} ? 'changed' : ''">
+        </div>
+        <div class="row">
+            <label>Track</label>
+            <input type="text" name="track" th:value="${trackChanged ? lookupTrack : record.track}" th:attr="data-original=${record.originalTrack}" th:classappend="${trackChanged} ? 'changed' : ''">
+        </div>
+        <div class="row">
+            <label>Year</label>
+            <input type="text" name="year" th:value="${yearChanged ? lookupYear : record.year}" th:attr="data-original=${record.originalYear}" th:classappend="${yearChanged} ? 'changed' : ''">
+        </div>
+        <div class="row">
+            <label>Genre</label>
+            <input type="text" name="genre" th:value="${genreChanged ? lookupGenre : record.genre}" th:attr="data-original=${record.originalGenre}" th:classappend="${genreChanged} ? 'changed' : ''">
+        </div>
+        <div class="row">
+            <label>Comment</label>
+            <input type="text" name="commentText" th:value="${commentChanged ? lookupCommentText : record.commentText}" th:attr="data-original=${record.originalCommentText}" th:classappend="${commentChanged} ? 'changed' : ''">
+        </div>
+    </section>
+
+    <section id="extended-tags" class="tab-panel">
+        <div class="row">
+            <label>Album Artist</label>
+            <input type="text" name="albumArtist" th:value="${albumArtistChanged ? lookupAlbumArtist : record.albumArtist}" th:attr="data-original=${record.originalAlbumArtist}" th:classappend="${albumArtistChanged} ? 'changed' : ''">
+        </div>
+        <div class="row">
+            <label>Composer</label>
+            <input type="text" name="composer" th:value="${composerChanged ? lookupComposer : record.composer}" th:attr="data-original=${record.originalComposer}" th:classappend="${composerChanged} ? 'changed' : ''">
+        </div>
+        <div class="row">
+            <label>Disc Number</label>
+            <input type="number" min="0" name="discNumber" th:value="${discNumberChanged ? lookupDiscNumber : record.discNumber}" th:attr="data-original=${record.originalDiscNumber}" th:classappend="${discNumberChanged} ? 'changed' : ''">
+        </div>
+        <div class="row">
+            <label>Disc Total</label>
+            <input type="number" min="0" name="discTotal" th:value="${discTotalChanged ? lookupDiscTotal : record.discTotal}" th:attr="data-original=${record.originalDiscTotal}" th:classappend="${discTotalChanged} ? 'changed' : ''">
+        </div>
+        <div class="row">
+            <label>Track Total</label>
+            <input type="number" min="0" name="trackTotal" th:value="${trackTotalChanged ? lookupTrackTotal : record.trackTotal}" th:attr="data-original=${record.originalTrackTotal}" th:classappend="${trackTotalChanged} ? 'changed' : ''">
+        </div>
+        <div class="row">
+            <label>Lyrics</label>
+            <textarea rows="6" name="lyrics" th:text="${lyricsChanged ? lookupLyrics : record.lyrics}" th:attr="data-original=${record.originalLyrics}" th:classappend="${lyricsChanged} ? 'changed' : ''"></textarea>
+        </div>
+    </section>
+
+    <section id="additional-tags" class="tab-panel">
+        <div class="row">
+            <label>Additional Metadata JSON</label>
+            <textarea rows="10" name="extraMetadataJson" th:text="${extraMetadataChanged ? lookupExtraMetadataJson : record.extraMetadataJson}" th:attr="data-original=${record.originalExtraMetadataJson}" th:classappend="${extraMetadataChanged} ? 'changed' : ''"></textarea>
+        </div>
+    </section>
+
+    <p class="lookup-note" th:if="${titleChanged or artistChanged or albumChanged or trackChanged or yearChanged or genreChanged or commentChanged or albumArtistChanged or composerChanged or discNumberChanged or discTotalChanged or trackTotalChanged or lyricsChanged or extraMetadataChanged}">
         Highlighted fields contain lookup suggestions. Click "Save Changes" to apply.
     </p>
 
     <div class="actions">
+        <button id="revertOriginalBtn" type="button">Revert Metadata to Original</button>
+        <button id="revertPathBtn" type="button">Revert Current Path to Original Path</button>
         <button type="submit">Save Changes</button>
     </div>
 </form>
@@ -88,5 +166,70 @@
     <input type="hidden" name="dir" th:value="${dir}">
     <button type="submit">Lookup metadata in MusicBrainz (Preview Only)</button>
 </form>
+</main>
+<script>
+(() => {
+    const buttons = Array.from(document.querySelectorAll(".tab-button"));
+    const panels = Array.from(document.querySelectorAll(".tab-panel"));
+    const firstChangedButton = buttons.find((button) => button.classList.contains("has-changes"));
+    const revertButton = document.getElementById("revertOriginalBtn");
+    const revertPathButton = document.getElementById("revertPathBtn");
+    const currentPathInput = document.getElementById("currentPath");
+    const originalPathInput = document.getElementById("originalPath");
+
+    const activate = (button) => {
+        const targetId = button.getAttribute("data-tab-target");
+        buttons.forEach((b) => {
+            b.classList.remove("active");
+            b.setAttribute("aria-selected", "false");
+        });
+        panels.forEach((panel) => panel.classList.remove("active"));
+        button.classList.add("active");
+        button.setAttribute("aria-selected", "true");
+        const target = document.getElementById(targetId);
+        if (target) {
+            target.classList.add("active");
+        }
+    };
+
+    if (firstChangedButton) {
+        activate(firstChangedButton);
+    }
+
+    if (revertButton) {
+        revertButton.addEventListener("click", () => {
+            document.querySelectorAll("input[name][data-original], textarea[name][data-original]").forEach((field) => {
+                const original = field.getAttribute("data-original");
+                field.value = original == null ? "" : original;
+                field.classList.remove("changed");
+            });
+            document.querySelectorAll(".tab-button.has-changes").forEach((button) => {
+                button.classList.remove("has-changes");
+            });
+            document.querySelectorAll(".tab-button span").forEach((marker) => {
+                if (marker.textContent && marker.textContent.trim() == "*") {
+                    marker.remove();
+                }
+            });
+            const lookupNote = document.querySelector(".lookup-note");
+            if (lookupNote) {
+                lookupNote.style.display = "none";
+            }
+        });
+    }
+
+    if (revertPathButton && currentPathInput && originalPathInput) {
+        revertPathButton.addEventListener("click", () => {
+            currentPathInput.value = originalPathInput.value;
+        });
+    }
+
+    buttons.forEach((button) => {
+        button.addEventListener("click", () => {
+            activate(button);
+        });
+    });
+})();
+</script>
 </body>
 </html>

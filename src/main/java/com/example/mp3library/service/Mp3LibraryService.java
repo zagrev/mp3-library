@@ -6,8 +6,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.jaudiotagger.audio.AudioFileIO;
 import org.jaudiotagger.tag.FieldKey;
@@ -22,6 +25,8 @@ import org.springframework.util.StringUtils;
 
 import com.example.mp3library.model.Mp3FileRecord;
 import com.example.mp3library.repository.Mp3FileRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.criteria.Predicate;
 
@@ -29,13 +34,20 @@ import jakarta.persistence.criteria.Predicate;
 public class Mp3LibraryService
   {
 
+    private static final Set<FieldKey> CORE_FIELD_KEYS = Set.of(FieldKey.TITLE, FieldKey.ARTIST, FieldKey.ALBUM,
+        FieldKey.TRACK, FieldKey.YEAR, FieldKey.GENRE, FieldKey.COMMENT, FieldKey.ALBUM_ARTIST, FieldKey.COMPOSER,
+        FieldKey.DISC_NO, FieldKey.DISC_TOTAL, FieldKey.TRACK_TOTAL, FieldKey.LYRICS);
+
     private final MusicBrainzLookupService lookupService;
+    private final ObjectMapper objectMapper;
     private final Mp3FileRepository repository;
 
-    public Mp3LibraryService(Mp3FileRepository repository, MusicBrainzLookupService lookupService)
+    public Mp3LibraryService(Mp3FileRepository repository, MusicBrainzLookupService lookupService,
+        ObjectMapper objectMapper)
     {
       this.repository    = repository;
       this.lookupService = lookupService;
+      this.objectMapper  = objectMapper;
     }
 
     private String clean(String value)
@@ -48,7 +60,7 @@ public class Mp3LibraryService
       final var fileName = filePath.getFileName().toString();
       final var fallbackTitle = fileName.toLowerCase().endsWith(".mp3") ? fileName.substring(0, fileName.length() - 4)
           : fileName;
-      return new MetadataSnapshot(fallbackTitle, "", "", 0, "", "", "");
+      return new MetadataSnapshot(fallbackTitle, "", "", 0, "", "", "", "", "", 0, 0, 0, "", "{}");
     }
 
     @Transactional(readOnly = true)
@@ -95,6 +107,25 @@ public class Mp3LibraryService
       {
         record.setCommentText(metadata.commentText());
       }
+      if (StringUtils.hasText(metadata.albumArtist()))
+      {
+        record.setAlbumArtist(metadata.albumArtist());
+      }
+      if (StringUtils.hasText(metadata.composer()))
+      {
+        record.setComposer(metadata.composer());
+      }
+      if (StringUtils.hasText(metadata.lyrics()))
+      {
+        record.setLyrics(metadata.lyrics());
+      }
+      record.setDiscNumber(metadata.discNumber());
+      record.setDiscTotal(metadata.discTotal());
+      record.setTrackTotal(metadata.trackTotal());
+      if (StringUtils.hasText(metadata.extraMetadataJson()))
+      {
+        record.setExtraMetadataJson(metadata.extraMetadataJson());
+      }
 
       writeTagsIfPossible(record);
       return Optional.of(repository.save(record));
@@ -132,12 +163,61 @@ public class Mp3LibraryService
           return fallbackMetadata(filePath);
         }
         return new MetadataSnapshot(readTag(tag, FieldKey.TITLE), readTag(tag, FieldKey.ARTIST),
-            readTag(tag, FieldKey.ALBUM), Integer.decode(readTag(tag, FieldKey.TRACK)), readTag(tag, FieldKey.YEAR),
-            readTag(tag, FieldKey.GENRE), readTag(tag, FieldKey.COMMENT));
+            readTag(tag, FieldKey.ALBUM), parseIntOrZero(readTag(tag, FieldKey.TRACK)), readTag(tag, FieldKey.YEAR),
+            readTag(tag, FieldKey.GENRE), readTag(tag, FieldKey.COMMENT), readTag(tag, FieldKey.ALBUM_ARTIST),
+            readTag(tag, FieldKey.COMPOSER), parseIntOrZero(readTag(tag, FieldKey.DISC_NO)),
+            parseIntOrZero(readTag(tag, FieldKey.DISC_TOTAL)), parseIntOrZero(readTag(tag, FieldKey.TRACK_TOTAL)),
+            readTag(tag, FieldKey.LYRICS), extractAdditionalMetadata(tag));
       }
       catch (final Exception ex)
       {
         return fallbackMetadata(filePath);
+      }
+    }
+
+    private String extractAdditionalMetadata(Tag tag)
+    {
+      final Map<String, String> metadata = new LinkedHashMap<>();
+      for (final var key : FieldKey.values())
+      {
+        if (CORE_FIELD_KEYS.contains(key))
+        {
+          continue;
+        }
+        final var value = readTag(tag, key);
+        if (StringUtils.hasText(value))
+        {
+          metadata.put(key.name(), value);
+        }
+      }
+      if (metadata.isEmpty())
+      {
+        return "{}";
+      }
+      try
+      {
+        return objectMapper.writeValueAsString(metadata);
+      }
+      catch (JsonProcessingException ex)
+      {
+        return "{}";
+      }
+    }
+
+    private int parseIntOrZero(String value)
+    {
+      if (!StringUtils.hasText(value))
+      {
+        return 0;
+      }
+      final var normalized = value.contains("/") ? value.substring(0, value.indexOf('/')) : value;
+      try
+      {
+        return Integer.parseInt(normalized.trim());
+      }
+      catch (NumberFormatException ex)
+      {
+        return 0;
       }
     }
 
@@ -175,6 +255,13 @@ public class Mp3LibraryService
         record.setOriginalYear(metadata.year());
         record.setOriginalGenre(metadata.genre());
         record.setOriginalCommentText(metadata.commentText());
+        record.setOriginalAlbumArtist(metadata.albumArtist());
+        record.setOriginalComposer(metadata.composer());
+        record.setOriginalDiscNumber(metadata.discNumber());
+        record.setOriginalDiscTotal(metadata.discTotal());
+        record.setOriginalTrackTotal(metadata.trackTotal());
+        record.setOriginalLyrics(metadata.lyrics());
+        record.setOriginalExtraMetadataJson(metadata.extraMetadataJson());
       }
       record.setTitle(metadata.title());
       record.setArtist(metadata.artist());
@@ -183,6 +270,13 @@ public class Mp3LibraryService
       record.setYear(metadata.year());
       record.setGenre(metadata.genre());
       record.setCommentText(metadata.commentText());
+      record.setAlbumArtist(metadata.albumArtist());
+      record.setComposer(metadata.composer());
+      record.setDiscNumber(metadata.discNumber());
+      record.setDiscTotal(metadata.discTotal());
+      record.setTrackTotal(metadata.trackTotal());
+      record.setLyrics(metadata.lyrics());
+      record.setExtraMetadataJson(metadata.extraMetadataJson());
 
       repository.save(record);
     }
@@ -296,6 +390,13 @@ public class Mp3LibraryService
       record.setYear(clean(update.getYear()));
       record.setGenre(clean(update.getGenre()));
       record.setCommentText(clean(update.getCommentText()));
+      record.setAlbumArtist(clean(update.getAlbumArtist()));
+      record.setComposer(clean(update.getComposer()));
+      record.setLyrics(clean(update.getLyrics()));
+      record.setDiscNumber(update.getDiscNumber());
+      record.setDiscTotal(update.getDiscTotal());
+      record.setTrackTotal(update.getTrackTotal());
+      record.setExtraMetadataJson(clean(update.getExtraMetadataJson()));
 
       if (StringUtils.hasText(requestedPath))
       {
@@ -330,6 +431,12 @@ public class Mp3LibraryService
         setTag(tag, FieldKey.YEAR, record.getYear());
         setTag(tag, FieldKey.GENRE, record.getGenre());
         setTag(tag, FieldKey.COMMENT, record.getCommentText());
+        setTag(tag, FieldKey.ALBUM_ARTIST, record.getAlbumArtist());
+        setTag(tag, FieldKey.COMPOSER, record.getComposer());
+        setTag(tag, FieldKey.DISC_NO, record.getDiscNumber() == null ? "" : record.getDiscNumber().toString());
+        setTag(tag, FieldKey.DISC_TOTAL, record.getDiscTotal() == null ? "" : record.getDiscTotal().toString());
+        setTag(tag, FieldKey.TRACK_TOTAL, record.getTrackTotal() == null ? "" : record.getTrackTotal().toString());
+        setTag(tag, FieldKey.LYRICS, record.getLyrics());
         audioFile.commit();
       }
       catch (final Exception ex)
