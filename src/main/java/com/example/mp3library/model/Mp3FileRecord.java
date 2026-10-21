@@ -44,6 +44,20 @@ public class Mp3FileRecord
     private String id;
     @Column(name = "file_path_original", length = 1000000)
     private String originalPath;
+    @Column(name = "original_title")
+    private String originalTitle;
+    @Column(name = "original_artist")
+    private String originalArtist;
+    @Column(name = "original_album")
+    private String originalAlbum;
+    @Column(name = "original_track")
+    private Integer originalTrack;
+    @Column(name = "original_release_year")
+    private String originalYear;
+    @Column(name = "original_genre")
+    private String originalGenre;
+    @Column(name = "original_comment_text", length = 1000000)
+    private String originalCommentText;
     private String title;
     private Integer track;
     private Instant updatedAt;

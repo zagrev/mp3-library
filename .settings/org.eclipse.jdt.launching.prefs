@@ -1,0 +1,2 @@
+eclipse.preferences.version=1
+org.eclipse.jdt.launching.PREF_VM_ARGUMENTS=-javaagent:${user_home}/.m2/repository/net/bytebuddy/byte-buddy-agent/1.17.6/byte-buddy-agent-1.17.6.jar -javaagent:${user_home}/.m2/repository/org/projectlombok/lombok/1.18.38/lombok-1.18.38.jar

@@ -11,16 +11,26 @@
         .message { padding: 0.5rem; margin-bottom: 1rem; background: #e6ffed; }
         .error { padding: 0.5rem; margin-bottom: 1rem; background: #ffeef0; }
         .actions { display: flex; gap: 1rem; margin-top: 1rem; }
+        .changed { background: #fff6bf; border: 1px solid #d4b106; }
+        .lookup-note { margin-top: 0.4rem; color: #8a6d3b; font-size: 0.9rem; }
     </style>
 </head>
 <body>
-<p><a href="/">Back to catalog</a></p>
+<p><a th:href="${backToCatalogUrl}">Back to catalog</a></p>
 <h1>Edit MP3 Record</h1>
 
 <div th:if="${message}" class="message" th:text="${message}"></div>
 <div th:if="${error}" class="error" th:text="${error}"></div>
 
 <form th:action="@{'/mp3/' + ${record.id} + '/update'}" method="post">
+    <input type="hidden" name="catalogArtist" th:value="${artist}">
+    <input type="hidden" name="catalogAlbum" th:value="${album}">
+    <input type="hidden" name="catalogTitle" th:value="${title}">
+    <input type="hidden" name="catalogPath" th:value="${path}">
+    <input type="hidden" name="catalogPage" th:value="${page}">
+    <input type="hidden" name="catalogSize" th:value="${size}">
+    <input type="hidden" name="catalogSort" th:value="${sort}">
+    <input type="hidden" name="catalogDir" th:value="${dir}">
     <div class="row">
         <label>Original Path</label>
         <input type="text" th:value="${record.originalPath}" readonly>
@@ -31,40 +41,52 @@
     </div>
     <div class="row">
         <label>Artist</label>
-        <input type="text" name="artist" th:value="${record.artist}">
+        <input type="text" name="artist" th:value="${artistChanged ? lookupArtist : record.artist}" th:classappend="${artistChanged} ? 'changed' : ''">
     </div>
     <div class="row">
         <label>Album</label>
-        <input type="text" name="album" th:value="${record.album}">
+        <input type="text" name="album" th:value="${albumChanged ? lookupAlbum : record.album}" th:classappend="${albumChanged} ? 'changed' : ''">
     </div>
     <div class="row">
         <label>Title</label>
-        <input type="text" name="title" th:value="${record.title}">
+        <input type="text" name="title" th:value="${titleChanged ? lookupTitle : record.title}" th:classappend="${titleChanged} ? 'changed' : ''">
     </div>
     <div class="row">
         <label>Track</label>
-        <input type="text" name="track" th:value="${record.track}">
+        <input type="text" name="track" th:value="${trackChanged ? lookupTrack : record.track}" th:classappend="${trackChanged} ? 'changed' : ''">
     </div>
     <div class="row">
         <label>Year</label>
-        <input type="text" name="year" th:value="${record.year}">
+        <input type="text" name="year" th:value="${yearChanged ? lookupYear : record.year}" th:classappend="${yearChanged} ? 'changed' : ''">
     </div>
     <div class="row">
         <label>Genre</label>
-        <input type="text" name="genre" th:value="${record.genre}">
+        <input type="text" name="genre" th:value="${genreChanged ? lookupGenre : record.genre}" th:classappend="${genreChanged} ? 'changed' : ''">
     </div>
     <div class="row">
         <label>Comment</label>
-        <input type="text" name="commentText" th:value="${record.commentText}">
+        <input type="text" name="commentText" th:value="${commentChanged ? lookupCommentText : record.commentText}" th:classappend="${commentChanged} ? 'changed' : ''">
     </div>
 
+    <p class="lookup-note" th:if="${titleChanged or artistChanged or albumChanged or trackChanged or yearChanged or genreChanged or commentChanged}">
+        Highlighted fields contain lookup suggestions. Click "Save Changes" to apply.
+    </p>
+
     <div class="actions">
-        <button type="submit">Save Metadata + Path</button>
+        <button type="submit">Save Changes</button>
     </div>
 </form>
 
 <form th:action="@{'/mp3/' + ${record.id} + '/lookup'}" method="post" style="margin-top: 1rem;">
-    <button type="submit">Lookup metadata in MusicBrainz</button>
+    <input type="hidden" name="artist" th:value="${artist}">
+    <input type="hidden" name="album" th:value="${album}">
+    <input type="hidden" name="title" th:value="${title}">
+    <input type="hidden" name="path" th:value="${path}">
+    <input type="hidden" name="page" th:value="${page}">
+    <input type="hidden" name="size" th:value="${size}">
+    <input type="hidden" name="sort" th:value="${sort}">
+    <input type="hidden" name="dir" th:value="${dir}">
+    <button type="submit">Lookup metadata in MusicBrainz (Preview Only)</button>
 </form>
 </body>
 </html>

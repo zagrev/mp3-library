@@ -2,6 +2,8 @@ package com.example.mp3library.web;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -11,6 +13,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
@@ -24,11 +27,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.example.mp3library.model.Mp3FileRecord;
+import com.example.mp3library.service.MetadataSnapshot;
 import com.example.mp3library.service.Mp3LibraryService;
 
 @WebMvcTest(Mp3WebController.class)
@@ -48,61 +54,120 @@ class Mp3WebControllerTest
     void editFoundReturnsEditView() throws Exception
     {
       final var record = new Mp3FileRecord();
-      when(service.findById("4L")).thenReturn(Optional.of(record));
+      record.setTitle("Old Title");
+      when(service.findById("4")).thenReturn(Optional.of(record));
 
-      mockMvc.perform(get("/mp3/4L")).andExpect(status().isOk()).andExpect(view().name("edit"))
+      mockMvc.perform(get("/mp3/4")).andExpect(status().isOk()).andExpect(view().name("edit"))
           .andExpect(model().attributeExists("record"));
+    }
+
+    @Test
+    void editCarriesBackToCatalogUrl() throws Exception
+    {
+      final var record = new Mp3FileRecord();
+      when(service.findById("4")).thenReturn(Optional.of(record));
+
+      mockMvc
+          .perform(get("/mp3/4").param("artist", "AA").param("album", "BB").param("title", "CC")
+              .param("path", "DD").param("page", "2").param("size", "10").param("sort", "title")
+              .param("dir", "desc"))
+          .andExpect(status().isOk()).andExpect(view().name("edit"))
+          .andExpect(model().attribute("backToCatalogUrl",
+              "/?artist=AA&album=BB&title=CC&path=DD&page=2&size=10&sort=title&dir=desc"));
+    }
+
+    @Test
+    void editShowsLookupPreviewChanges() throws Exception
+    {
+      final var record = new Mp3FileRecord();
+      record.setTitle("Old Title");
+      when(service.findById("4")).thenReturn(Optional.of(record));
+
+      mockMvc.perform(get("/mp3/4").flashAttr("lookupTitle", "New Title")).andExpect(status().isOk())
+          .andExpect(view().name("edit")).andExpect(model().attribute("titleChanged", true));
     }
 
     @Test
     void editMissingRedirectsToIndexWithError() throws Exception
     {
-      when(service.findById("404L")).thenReturn(Optional.empty());
+      when(service.findById("404")).thenReturn(Optional.empty());
 
-      mockMvc.perform(get("/mp3/404L")).andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/"))
+      mockMvc.perform(get("/mp3/404")).andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/"))
           .andExpect(flash().attribute("error", "Record not found"));
     }
 
     @Test
-    void indexShowsRecordsAndBrowseData() throws Exception
+    void indexShowsRecords() throws Exception
+    {
+      when(service.searchPaged(eq("A"), eq("B"), eq("C"), eq("D"), anyInt(), anyInt(), anyString(), anyString()))
+          .thenReturn(new PageImpl<>(List.of(new Mp3FileRecord()), PageRequest.of(0, 25), 1));
+
+      mockMvc.perform(get("/").param("artist", "A").param("album", "B").param("title", "C").param("path", "D"))
+          .andExpect(status().isOk()).andExpect(view().name("index"))
+          .andExpect(model().attributeExists("records", "page", "size", "totalPages", "hasPrevious", "hasNext"))
+          .andExpect(model().attribute("page", 0)).andExpect(model().attribute("size", 25))
+          .andExpect(model().attribute("sort", "artist")).andExpect(model().attribute("dir", "asc"));
+
+      verify(service, times(1)).searchPaged("A", "B", "C", "D", 0, 25, "artist", "asc");
+    }
+
+    @Test
+    void indexHonorsPagingAndSortingParams() throws Exception
+    {
+      when(service.searchPaged(eq("AR"), eq("AL"), eq("TI"), eq("P"), eq(2), eq(10), eq("title"), eq("desc")))
+          .thenReturn(new PageImpl<>(List.of(new Mp3FileRecord()), PageRequest.of(2, 10), 35));
+
+      mockMvc
+          .perform(get("/").param("artist", "AR").param("album", "AL").param("title", "TI").param("path", "P")
+              .param("page", "2").param("size", "10").param("sort", "title").param("dir", "desc"))
+          .andExpect(status().isOk()).andExpect(view().name("index")).andExpect(model().attribute("page", 2))
+          .andExpect(model().attribute("size", 10)).andExpect(model().attribute("totalPages", 4))
+          .andExpect(model().attribute("hasPrevious", true)).andExpect(model().attribute("hasNext", true))
+          .andExpect(model().attribute("sort", "title")).andExpect(model().attribute("dir", "desc"));
+    }
+
+    @Test
+    void browsePageShowsDirectoryData() throws Exception
     {
       final var browseRoot = Files.createDirectories(tempDir.resolve("browse"));
       Files.createDirectories(browseRoot.resolve("ArtistA"));
 
-      when(service.search("A", "B", "C", "D")).thenReturn(List.of(new Mp3FileRecord()));
-
-      mockMvc
-          .perform(get("/").param("artist", "A").param("album", "B").param("title", "C").param("path", "D")
-              .param("browsePath", browseRoot.toString()))
-          .andExpect(status().isOk()).andExpect(view().name("index"))
-          .andExpect(model().attributeExists("records", "browsePath", "browseParentPath", "browseDirectories"));
+      mockMvc.perform(get("/browse").param("browsePath", browseRoot.toString())).andExpect(status().isOk())
+          .andExpect(view().name("browse"))
+          .andExpect(model().attributeExists("browsePath", "browseParentPath", "browseDirectories"));
     }
 
     @Test
     void lookupFailureAddsError() throws Exception
     {
-      when(service.lookupAndApply("11L")).thenThrow(new IllegalArgumentException("MP3 record not found: 11"));
+      when(service.lookupPreview("11")).thenThrow(new IllegalArgumentException("MP3 record not found: 11"));
 
-      mockMvc.perform(post("/mp3/11L/lookup")).andExpect(status().is3xxRedirection())
-          .andExpect(redirectedUrl("/mp3/11")).andExpect(flash().attribute("error", "MP3 record not found: 11"));
+      mockMvc.perform(post("/mp3/11/lookup")).andExpect(status().is3xxRedirection())
+          .andExpect(redirectedUrlPattern("/mp3/11*"))
+          .andExpect(flash().attribute("error", "MP3 record not found: 11"));
     }
 
     @Test
     void lookupNotFoundAddsError() throws Exception
     {
-      when(service.lookupAndApply("10L")).thenReturn(Optional.empty());
+      when(service.lookupPreview("10")).thenReturn(Optional.empty());
 
-      mockMvc.perform(post("/mp3/10L/lookup")).andExpect(status().is3xxRedirection())
-          .andExpect(redirectedUrl("/mp3/10")).andExpect(flash().attribute("error", "No metadata found from lookup."));
+      mockMvc.perform(post("/mp3/10/lookup")).andExpect(status().is3xxRedirection())
+          .andExpect(redirectedUrlPattern("/mp3/10*"))
+          .andExpect(flash().attribute("error", "No metadata found from lookup."));
     }
 
     @Test
     void lookupSuccessAddsMessage() throws Exception
     {
-      when(service.lookupAndApply("9L")).thenReturn(Optional.of(new Mp3FileRecord()));
+      when(service.lookupPreview("9")).thenReturn(Optional.of(new MetadataSnapshot("Title", "Artist", "Album", 1,
+          "2024", "Rock", "Comment")));
 
-      mockMvc.perform(post("/mp3/9L/lookup")).andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/mp3/9"))
-          .andExpect(flash().attribute("message", "Lookup succeeded and metadata was applied."));
+      mockMvc.perform(post("/mp3/9/lookup")).andExpect(status().is3xxRedirection())
+          .andExpect(redirectedUrlPattern("/mp3/9*"))
+          .andExpect(flash().attribute("message", "Lookup completed. Review highlighted changes, then save."))
+          .andExpect(flash().attribute("lookupTitle", "Title")).andExpect(flash().attribute("lookupArtist", "Artist"))
+          .andExpect(flash().attribute("lookupAlbum", "Album")).andExpect(flash().attribute("lookupTrack", "1"));
     }
 
     @Test
@@ -124,16 +189,28 @@ class Mp3WebControllerTest
     }
 
     @Test
+    void scanFromBrowseRedirectsBackToBrowse() throws Exception
+    {
+      when(service.scanDirectory("C:\\music")).thenReturn(1);
+
+      mockMvc
+          .perform(post("/scan").param("directoryPath", "C:\\music").param("returnTo", "/browse")
+              .param("browsePath", "C:\\music"))
+          .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/browse?browsePath=C%3A%5Cmusic"))
+          .andExpect(flash().attribute("message", "Scanned 1 MP3 files from C:\\music"));
+    }
+
+    @Test
     void updateFailureAddsErrorFlash() throws Exception
     {
-      when(service.updateRecord(eq("5L"), any(Mp3FileRecord.class), eq("C:\\locked.mp3")))
+      when(service.updateRecord(eq("5"), any(Mp3FileRecord.class), eq("C:\\locked.mp3")))
           .thenThrow(new IOException("Unable to write tags"));
 
       mockMvc
-          .perform(post("/mp3/5L/update").param("title", "T").param("artist", "AR").param("album", "AL")
+          .perform(post("/mp3/5/update").param("title", "T").param("artist", "AR").param("album", "AL")
               .param("track", "1").param("year", "2026").param("genre", "Rock").param("commentText", "note")
               .param("currentPath", "C:\\locked.mp3"))
-          .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/mp3/5"))
+          .andExpect(status().is3xxRedirection()).andExpect(redirectedUrlPattern("/mp3/5*"))
           .andExpect(flash().attribute("error", "Unable to write tags"));
     }
 
@@ -141,17 +218,17 @@ class Mp3WebControllerTest
     void updateSuccessPersistsAndRedirects() throws Exception
     {
       final var persisted = new Mp3FileRecord();
-      when(service.updateRecord(eq("2L"), any(Mp3FileRecord.class), eq("C:\\new\\song.mp3"))).thenReturn(persisted);
+      when(service.updateRecord(eq("2"), any(Mp3FileRecord.class), eq("C:\\new\\song.mp3"))).thenReturn(persisted);
 
       mockMvc
           .perform(post("/mp3/2/update").param("title", "T").param("artist", "AR").param("album", "AL")
               .param("track", "1").param("year", "2026").param("genre", "Rock").param("commentText", "note")
               .param("currentPath", "C:\\new\\song.mp3"))
-          .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/mp3/2"))
+          .andExpect(status().is3xxRedirection()).andExpect(redirectedUrlPattern("/mp3/2*"))
           .andExpect(flash().attribute("message", "Record updated"));
 
       final ArgumentCaptor<Mp3FileRecord> captor = ArgumentCaptor.forClass(Mp3FileRecord.class);
-      verify(service, times(1)).updateRecord(eq("2L"), captor.capture(), eq("C:\\new\\song.mp3"));
+      verify(service, times(1)).updateRecord(eq("2"), captor.capture(), eq("C:\\new\\song.mp3"));
       assertEquals("T", captor.getValue().getTitle());
       assertEquals("AR", captor.getValue().getArtist());
       assertEquals("AL", captor.getValue().getAlbum());

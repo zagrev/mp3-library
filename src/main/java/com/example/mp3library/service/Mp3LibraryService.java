@@ -12,6 +12,9 @@ import java.util.Optional;
 import org.jaudiotagger.audio.AudioFileIO;
 import org.jaudiotagger.tag.FieldKey;
 import org.jaudiotagger.tag.Tag;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -97,6 +100,14 @@ public class Mp3LibraryService
       return Optional.of(repository.save(record));
     }
 
+    @Transactional(readOnly = true)
+    public Optional<MetadataSnapshot> lookupPreview(String id)
+    {
+      final var record = repository.findById(id)
+          .orElseThrow(() -> new IllegalArgumentException("MP3 record not found: " + id));
+      return lookupService.lookup(record.getTitle(), record.getArtist(), record.getAlbum());
+    }
+
     private void moveIfPossible(Path source, Path target) throws IOException
     {
       if (!Files.exists(source))
@@ -146,6 +157,7 @@ public class Mp3LibraryService
     {
       final var normalizedPath = filePath.toAbsolutePath().normalize().toString();
       final var record = repository.findByCurrentPath(normalizedPath).orElseGet(Mp3FileRecord::new);
+      final var isNewRecord = !StringUtils.hasText(record.getId());
 
       if (!StringUtils.hasText(record.getOriginalPath()))
       {
@@ -154,6 +166,16 @@ public class Mp3LibraryService
       record.setCurrentPath(normalizedPath);
 
       final var metadata = readMetadata(filePath);
+      if (isNewRecord)
+      {
+        record.setOriginalTitle(metadata.title());
+        record.setOriginalArtist(metadata.artist());
+        record.setOriginalAlbum(metadata.album());
+        record.setOriginalTrack(metadata.track());
+        record.setOriginalYear(metadata.year());
+        record.setOriginalGenre(metadata.genre());
+        record.setOriginalCommentText(metadata.commentText());
+      }
       record.setTitle(metadata.title());
       record.setArtist(metadata.artist());
       record.setAlbum(metadata.album());
@@ -191,30 +213,62 @@ public class Mp3LibraryService
     @Transactional(readOnly = true)
     public List<Mp3FileRecord> search(String artist, String album, String title, String pathContains)
     {
-      final Specification<Mp3FileRecord> spec = (root, query, cb) ->
+      return repository.findAll(buildSearchSpecification(artist, album, title, pathContains));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Mp3FileRecord> searchPaged(String artist, String album, String title, String pathContains, int page,
+        int size, String sortField, String sortDirection)
+    {
+      final var safePage = Math.max(page, 0);
+      final var safeSize = Math.min(Math.max(size, 1), 200);
+      final var safeSortField = sanitizeSortField(sortField);
+      final var sort = "desc".equalsIgnoreCase(sortDirection) ? Sort.by(safeSortField).descending()
+          : Sort.by(safeSortField).ascending();
+      final var pageable = PageRequest.of(safePage, safeSize, sort);
+      return repository.findAll(buildSearchSpecification(artist, album, title, pathContains), pageable);
+    }
+
+    private String sanitizeSortField(String requestedSortField)
+    {
+      if (!StringUtils.hasText(requestedSortField))
+      {
+        return "artist";
+      }
+
+      return switch (requestedSortField)
+      {
+        case "id", "artist", "album", "title", "track", "currentPath", "originalPath" -> requestedSortField;
+        default -> "artist";
+      };
+    }
+
+    private Specification<Mp3FileRecord> buildSearchSpecification(String artist, String album, String title,
+        String pathContains)
+    {
+      return (root, query, cb) ->
       {
         final List<Predicate> predicates = new ArrayList<>();
         if (StringUtils.hasText(artist))
         {
-          predicates.add(cb.like(root.get("artist"), "%" + artist + "%"));
+          predicates.add(cb.like(cb.lower(root.get("artist")), "%" + artist.toLowerCase() + "%"));
         }
         if (StringUtils.hasText(album))
         {
-          predicates.add(cb.like(root.get("album"), "%" + album + "%"));
+          predicates.add(cb.like(cb.lower(root.get("album")), "%" + album.toLowerCase() + "%"));
         }
         if (StringUtils.hasText(title))
         {
-          predicates.add(cb.like(root.get("title"), "%" + title + "%"));
+          predicates.add(cb.like(cb.lower(root.get("title")), "%" + title.toLowerCase() + "%"));
         }
         if (StringUtils.hasText(pathContains))
         {
-          final var matcher = "%" + pathContains + "%";
-          predicates.add(cb.or(cb.like(root.get("originalPath"), matcher), cb.like(root.get("currentPath"), matcher)));
+          final var matcher = "%" + pathContains.toLowerCase() + "%";
+          predicates.add(cb.or(cb.like(cb.lower(root.get("originalPath")), matcher),
+              cb.like(cb.lower(root.get("currentPath")), matcher)));
         }
         return cb.and(predicates.toArray(Predicate[]::new));
       };
-
-      return repository.findAll(spec);
     }
 
     private void setTag(Tag tag, FieldKey key, String value)

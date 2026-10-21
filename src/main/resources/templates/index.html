@@ -11,9 +11,9 @@
         .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem; }
         .message { padding: 0.5rem; margin-bottom: 1rem; background: #e6ffed; }
         .error { padding: 0.5rem; margin-bottom: 1rem; background: #ffeef0; }
-        .browser { border: 1px solid #ccc; padding: 0.8rem; margin: 1rem 0; background: #fafafa; }
-        .browser table { margin-top: 0.6rem; }
-        .browser-actions { display: flex; gap: 0.4rem; }
+        .actions { margin: 1rem 0; }
+        .pager { margin-top: 0.8rem; display: flex; gap: 0.6rem; align-items: center; }
+        .pager form { margin: 0; }
     </style>
 </head>
 <body>
@@ -28,43 +28,8 @@
     <button type="submit">Scan</button>
 </form>
 
-<div class="browser">
-    <h2>Browse Server Directories</h2>
-    <form method="get" action="/" style="margin-bottom: 0.5rem;">
-        <label for="browsePath">Current folder:</label>
-        <input id="browsePath" name="browsePath" type="text" size="90" th:value="${browsePath}">
-        <button type="submit">Open</button>
-    </form>
-    <form method="get" action="/" th:if="${browseParentPath != ''}" style="margin-bottom: 0.5rem;">
-        <input type="hidden" name="browsePath" th:value="${browseParentPath}">
-        <button type="submit">Up One Level</button>
-    </form>
-
-    <table>
-        <thead>
-        <tr>
-            <th>Directory</th>
-            <th>Path</th>
-            <th>Actions</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr th:each="dir : ${browseDirectories}">
-            <td th:text="${dir.name}"></td>
-            <td th:text="${dir.fullPath}"></td>
-            <td class="browser-actions">
-                <form method="get" action="/">
-                    <input type="hidden" name="browsePath" th:value="${dir.fullPath}">
-                    <button type="submit">Open</button>
-                </form>
-                <form method="post" action="/scan">
-                    <input type="hidden" name="directoryPath" th:value="${dir.fullPath}">
-                    <button type="submit">Scan Here</button>
-                </form>
-            </td>
-        </tr>
-        </tbody>
-    </table>
+<div class="actions">
+    <a href="/browse">Browse Server Directories</a>
 </div>
 
 <h2>Filter</h2>
@@ -78,17 +43,34 @@
     <button type="submit">Apply Filters</button>
 </form>
 
+<form method="get" action="/" style="margin: 0.6rem 0;">
+    <input type="hidden" name="artist" th:value="${artist}">
+    <input type="hidden" name="album" th:value="${album}">
+    <input type="hidden" name="title" th:value="${title}">
+    <input type="hidden" name="path" th:value="${path}">
+    <input type="hidden" name="sort" th:value="${sort}">
+    <input type="hidden" name="dir" th:value="${dir}">
+    <input type="hidden" name="page" value="0">
+    <label for="size">Rows per page:</label>
+    <select id="size" name="size" onchange="this.form.submit()">
+        <option value="10" th:selected="${size == 10}">10</option>
+        <option value="25" th:selected="${size == 25}">25</option>
+        <option value="50" th:selected="${size == 50}">50</option>
+        <option value="100" th:selected="${size == 100}">100</option>
+    </select>
+</form>
+
 <h2>Catalog</h2>
 <table>
     <thead>
     <tr>
-        <th>ID</th>
-        <th>Artist</th>
-        <th>Album</th>
-        <th>Title</th>
-        <th>Track</th>
-        <th>Current Path</th>
-        <th>Original Path</th>
+        <th><a th:href="@{/(artist=${artist},album=${album},title=${title},path=${path},page=0,size=${size},sort='id',dir=${sort == 'id' and dir == 'asc' ? 'desc' : 'asc'})}">ID <span th:if="${sort == 'id'}" th:text="${dir == 'asc' ? '▲' : '▼'}"></span></a></th>
+        <th><a th:href="@{/(artist=${artist},album=${album},title=${title},path=${path},page=0,size=${size},sort='artist',dir=${sort == 'artist' and dir == 'asc' ? 'desc' : 'asc'})}">Artist <span th:if="${sort == 'artist'}" th:text="${dir == 'asc' ? '▲' : '▼'}"></span></a></th>
+        <th><a th:href="@{/(artist=${artist},album=${album},title=${title},path=${path},page=0,size=${size},sort='album',dir=${sort == 'album' and dir == 'asc' ? 'desc' : 'asc'})}">Album <span th:if="${sort == 'album'}" th:text="${dir == 'asc' ? '▲' : '▼'}"></span></a></th>
+        <th><a th:href="@{/(artist=${artist},album=${album},title=${title},path=${path},page=0,size=${size},sort='title',dir=${sort == 'title' and dir == 'asc' ? 'desc' : 'asc'})}">Title <span th:if="${sort == 'title'}" th:text="${dir == 'asc' ? '▲' : '▼'}"></span></a></th>
+        <th><a th:href="@{/(artist=${artist},album=${album},title=${title},path=${path},page=0,size=${size},sort='track',dir=${sort == 'track' and dir == 'asc' ? 'desc' : 'asc'})}">Track <span th:if="${sort == 'track'}" th:text="${dir == 'asc' ? '▲' : '▼'}"></span></a></th>
+        <th><a th:href="@{/(artist=${artist},album=${album},title=${title},path=${path},page=0,size=${size},sort='currentPath',dir=${sort == 'currentPath' and dir == 'asc' ? 'desc' : 'asc'})}">Current Path <span th:if="${sort == 'currentPath'}" th:text="${dir == 'asc' ? '▲' : '▼'}"></span></a></th>
+        <th><a th:href="@{/(artist=${artist},album=${album},title=${title},path=${path},page=0,size=${size},sort='originalPath',dir=${sort == 'originalPath' and dir == 'asc' ? 'desc' : 'asc'})}">Original Path <span th:if="${sort == 'originalPath'}" th:text="${dir == 'asc' ? '▲' : '▼'}"></span></a></th>
         <th>Actions</th>
     </tr>
     </thead>
@@ -101,9 +83,15 @@
         <td th:text="${record.track}"></td>
         <td th:text="${record.currentPath}"></td>
         <td th:text="${record.originalPath}"></td>
-        <td><a th:href="@{'/mp3/' + ${record.id}}">Edit</a></td>
+        <td><a th:href="@{'/mp3/' + ${record.id}(artist=${artist},album=${album},title=${title},path=${path},page=${page},size=${size},sort=${sort},dir=${dir})}">Edit</a></td>
     </tr>
     </tbody>
 </table>
+
+<div class="pager" th:if="${totalPages > 0}">
+    <a th:if="${hasPrevious}" th:href="@{/(artist=${artist},album=${album},title=${title},path=${path},page=${page - 1},size=${size},sort=${sort},dir=${dir})}">Previous</a>
+    <span th:text="${'Page ' + (page + 1) + ' of ' + totalPages}"></span>
+    <a th:if="${hasNext}" th:href="@{/(artist=${artist},album=${album},title=${title},path=${path},page=${page + 1},size=${size},sort=${sort},dir=${dir})}">Next</a>
+</div>
 </body>
 </html>

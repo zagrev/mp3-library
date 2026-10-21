@@ -1,6 +1,8 @@
 package com.example.mp3library.web;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -34,10 +36,25 @@ public class Mp3WebController
     }
 
     @GetMapping("/mp3/{id}")
-    public String edit(@PathVariable String id, Model model, RedirectAttributes redirectAttributes)
+    public String edit(@PathVariable String id, @RequestParam(defaultValue = "") String artist,
+        @RequestParam(defaultValue = "") String album, @RequestParam(defaultValue = "") String title,
+        @RequestParam(defaultValue = "") String path, @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "25") int size, @RequestParam(defaultValue = "artist") String sort,
+        @RequestParam(defaultValue = "asc") String dir, Model model, RedirectAttributes redirectAttributes)
     {
+      model.addAttribute("artist", artist);
+      model.addAttribute("album", album);
+      model.addAttribute("title", title);
+      model.addAttribute("path", path);
+      model.addAttribute("page", page);
+      model.addAttribute("size", size);
+      model.addAttribute("sort", sort);
+      model.addAttribute("dir", dir);
+      model.addAttribute("backToCatalogUrl", buildCatalogUrl(artist, album, title, path, page, size, sort, dir));
+
       return service.findById(id).map(record ->
       {
+        addLookupPreviewModel(model, record);
         model.addAttribute("record", record);
         return "edit";
       }).orElseGet(() ->
@@ -50,20 +67,35 @@ public class Mp3WebController
     @GetMapping("/")
     public String index(@RequestParam(defaultValue = "") String artist, @RequestParam(defaultValue = "") String album,
         @RequestParam(defaultValue = "") String title, @RequestParam(defaultValue = "") String path,
-        @RequestParam(defaultValue = "") String browsePath, Model model)
+        @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "25") int size,
+        @RequestParam(defaultValue = "artist") String sort, @RequestParam(defaultValue = "asc") String dir,
+        Model model)
     {
-      final var records = service.search(artist, album, title, path);
-      final var browseRoot = resolveBrowsePath(browsePath);
+      final var pagedRecords = service.searchPaged(artist, album, title, path, page, size, sort, dir);
 
-      model.addAttribute("browsePath", browseRoot.toString());
-      model.addAttribute("browseParentPath", browseRoot.getParent() == null ? "" : browseRoot.getParent().toString());
-      model.addAttribute("browseDirectories", listDirectories(browseRoot));
-      model.addAttribute("records", records);
+      model.addAttribute("records", pagedRecords.getContent());
+      model.addAttribute("page", pagedRecords.getNumber());
+      model.addAttribute("size", pagedRecords.getSize());
+      model.addAttribute("totalPages", pagedRecords.getTotalPages());
+      model.addAttribute("hasPrevious", pagedRecords.hasPrevious());
+      model.addAttribute("hasNext", pagedRecords.hasNext());
+      model.addAttribute("sort", sort);
+      model.addAttribute("dir", dir);
       model.addAttribute("artist", artist);
       model.addAttribute("album", album);
       model.addAttribute("title", title);
       model.addAttribute("path", path);
       return "index";
+    }
+
+    @GetMapping("/browse")
+    public String browse(@RequestParam(defaultValue = "") String browsePath, Model model)
+    {
+      final var browseRoot = resolveBrowsePath(browsePath);
+      model.addAttribute("browsePath", browseRoot.toString());
+      model.addAttribute("browseParentPath", browseRoot.getParent() == null ? "" : browseRoot.getParent().toString());
+      model.addAttribute("browseDirectories", listDirectories(browseRoot));
+      return "browse";
     }
 
     private List<DirectoryOption> listDirectories(Path root)
@@ -85,25 +117,75 @@ public class Mp3WebController
     }
 
     @PostMapping("/mp3/{id}/lookup")
-    public String lookup(@PathVariable String id, RedirectAttributes redirectAttributes)
+    public String lookup(@PathVariable String id, @RequestParam(defaultValue = "") String artist,
+        @RequestParam(defaultValue = "") String album, @RequestParam(defaultValue = "") String title,
+        @RequestParam(defaultValue = "") String path, @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "25") int size, @RequestParam(defaultValue = "artist") String sort,
+        @RequestParam(defaultValue = "asc") String dir, RedirectAttributes redirectAttributes)
     {
       try
       {
-        final var updated = service.lookupAndApply(id).isPresent();
-        if (updated)
+        final var preview = service.lookupPreview(id);
+        if (preview.isPresent())
         {
-          redirectAttributes.addFlashAttribute("message", "Lookup succeeded and metadata was applied.");
+          final var metadata = preview.get();
+          redirectAttributes.addFlashAttribute("lookupTitle", metadata.title());
+          redirectAttributes.addFlashAttribute("lookupArtist", metadata.artist());
+          redirectAttributes.addFlashAttribute("lookupAlbum", metadata.album());
+          redirectAttributes.addFlashAttribute("lookupTrack", metadata.track() == null || metadata.track() <= 0 ? ""
+              : metadata.track().toString());
+          redirectAttributes.addFlashAttribute("lookupYear", metadata.year());
+          redirectAttributes.addFlashAttribute("lookupGenre", metadata.genre());
+          redirectAttributes.addFlashAttribute("lookupCommentText", metadata.commentText());
+          redirectAttributes.addFlashAttribute("message", "Lookup completed. Review highlighted changes, then save.");
         }
         else
         {
           redirectAttributes.addFlashAttribute("error", "No metadata found from lookup.");
         }
       }
-      catch (IllegalArgumentException | IOException ex)
+      catch (IllegalArgumentException ex)
       {
         redirectAttributes.addFlashAttribute("error", ex.getMessage());
       }
-      return "redirect:/mp3/" + id;
+      return "redirect:/mp3/" + id + buildEditQuery(artist, album, title, path, page, size, sort, dir);
+    }
+
+    private void addLookupPreviewModel(Model model, Mp3FileRecord record)
+    {
+      final var lookupTitle = stringValue(model.asMap().get("lookupTitle"));
+      final var lookupArtist = stringValue(model.asMap().get("lookupArtist"));
+      final var lookupAlbum = stringValue(model.asMap().get("lookupAlbum"));
+      final var lookupTrack = stringValue(model.asMap().get("lookupTrack"));
+      final var lookupYear = stringValue(model.asMap().get("lookupYear"));
+      final var lookupGenre = stringValue(model.asMap().get("lookupGenre"));
+      final var lookupCommentText = stringValue(model.asMap().get("lookupCommentText"));
+
+      model.addAttribute("lookupTitle", lookupTitle);
+      model.addAttribute("lookupArtist", lookupArtist);
+      model.addAttribute("lookupAlbum", lookupAlbum);
+      model.addAttribute("lookupTrack", lookupTrack);
+      model.addAttribute("lookupYear", lookupYear);
+      model.addAttribute("lookupGenre", lookupGenre);
+      model.addAttribute("lookupCommentText", lookupCommentText);
+
+      model.addAttribute("titleChanged", isChanged(record.getTitle(), lookupTitle));
+      model.addAttribute("artistChanged", isChanged(record.getArtist(), lookupArtist));
+      model.addAttribute("albumChanged", isChanged(record.getAlbum(), lookupAlbum));
+      model.addAttribute("trackChanged", isChanged(stringValue(record.getTrack()), lookupTrack));
+      model.addAttribute("yearChanged", isChanged(record.getYear(), lookupYear));
+      model.addAttribute("genreChanged", isChanged(record.getGenre(), lookupGenre));
+      model.addAttribute("commentChanged", isChanged(record.getCommentText(), lookupCommentText));
+    }
+
+    private boolean isChanged(String original, String preview)
+    {
+      return !preview.isBlank() && !preview.equals(original == null ? "" : original);
+    }
+
+    private String stringValue(Object value)
+    {
+      return value == null ? "" : value.toString();
     }
 
     private Path resolveBrowsePath(String browsePath)
@@ -128,7 +210,10 @@ public class Mp3WebController
     }
 
     @PostMapping("/scan")
-    public String scan(@RequestParam String directoryPath, RedirectAttributes redirectAttributes)
+    public String scan(@RequestParam String directoryPath,
+        @RequestParam(name = "returnTo", defaultValue = "/") String returnTo,
+        @RequestParam(name = "browsePath", defaultValue = "") String browsePath,
+        RedirectAttributes redirectAttributes)
     {
       try
       {
@@ -139,6 +224,11 @@ public class Mp3WebController
       {
         redirectAttributes.addFlashAttribute("error", ex.getMessage());
       }
+      if ("/browse".equals(returnTo))
+      {
+        return "redirect:/browse" + (browsePath.isBlank() ? ""
+            : "?browsePath=" + URLEncoder.encode(browsePath, StandardCharsets.UTF_8));
+      }
       return "redirect:/";
     }
 
@@ -146,6 +236,14 @@ public class Mp3WebController
     public String update(@PathVariable String id, @RequestParam String title, @RequestParam String artist,
         @RequestParam String album, @RequestParam Integer track, @RequestParam String year, @RequestParam String genre,
         @RequestParam(name = "commentText") String commentText, @RequestParam(name = "currentPath") String currentPath,
+        @RequestParam(name = "catalogArtist", defaultValue = "") String catalogArtist,
+        @RequestParam(name = "catalogAlbum", defaultValue = "") String catalogAlbum,
+        @RequestParam(name = "catalogTitle", defaultValue = "") String catalogTitle,
+        @RequestParam(name = "catalogPath", defaultValue = "") String catalogPath,
+        @RequestParam(name = "catalogPage", defaultValue = "0") int catalogPage,
+        @RequestParam(name = "catalogSize", defaultValue = "25") int catalogSize,
+        @RequestParam(name = "catalogSort", defaultValue = "artist") String catalogSort,
+        @RequestParam(name = "catalogDir", defaultValue = "asc") String catalogDir,
         RedirectAttributes redirectAttributes)
     {
       try
@@ -165,6 +263,26 @@ public class Mp3WebController
       {
         redirectAttributes.addFlashAttribute("error", ex.getMessage());
       }
-      return "redirect:/mp3/" + id;
+      return "redirect:/mp3/" + id
+          + buildEditQuery(catalogArtist, catalogAlbum, catalogTitle, catalogPath, catalogPage, catalogSize,
+              catalogSort, catalogDir);
+    }
+
+    private String buildCatalogUrl(String artist, String album, String title, String path, int page, int size, String sort,
+        String dir)
+    {
+      return "/" + buildEditQuery(artist, album, title, path, page, size, sort, dir);
+    }
+
+    private String buildEditQuery(String artist, String album, String title, String path, int page, int size, String sort,
+        String dir)
+    {
+      return "?artist=" + encode(artist) + "&album=" + encode(album) + "&title=" + encode(title) + "&path="
+          + encode(path) + "&page=" + page + "&size=" + size + "&sort=" + encode(sort) + "&dir=" + encode(dir);
+    }
+
+    private String encode(String value)
+    {
+      return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
   }
