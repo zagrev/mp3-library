@@ -163,13 +163,20 @@ class Mp3WebControllerTest
     void lookupSuccessAddsMessage() throws Exception
     {
       when(service.lookupPreview("9")).thenReturn(Optional.of(
-          new MetadataSnapshot("Title", "Artist", "Album", 1, "2024", "Rock", "Comment", "", "", 0, 0, 0, "", "{}")));
+          new MetadataSnapshot("Title", "Artist", "Album", 1, "2024", "Rock", "Comment", "Album Artist",
+              "Composer", 1, 2, 12, "Lyrics", "{\"BPM\":\"120\"}")));
 
       mockMvc.perform(post("/mp3/9/lookup")).andExpect(status().is3xxRedirection())
           .andExpect(redirectedUrlPattern("/mp3/9*"))
           .andExpect(flash().attribute("message", "Lookup completed. Review highlighted changes, then save."))
           .andExpect(flash().attribute("lookupTitle", "Title")).andExpect(flash().attribute("lookupArtist", "Artist"))
-          .andExpect(flash().attribute("lookupAlbum", "Album")).andExpect(flash().attribute("lookupTrack", "1"));
+          .andExpect(flash().attribute("lookupAlbum", "Album")).andExpect(flash().attribute("lookupTrack", "1"))
+          .andExpect(flash().attribute("lookupAlbumArtist", "Album Artist"))
+          .andExpect(flash().attribute("lookupComposer", "Composer"))
+          .andExpect(flash().attribute("lookupDiscNumber", "1"))
+          .andExpect(flash().attribute("lookupDiscTotal", "2"))
+          .andExpect(flash().attribute("lookupTrackTotal", "12")).andExpect(flash().attribute("lookupLyrics", "Lyrics"))
+          .andExpect(flash().attribute("lookupExtraMetadataJson", "{\"BPM\":\"120\"}"));
     }
 
     @Test
