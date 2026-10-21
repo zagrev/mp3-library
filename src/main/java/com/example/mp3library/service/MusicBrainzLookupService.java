@@ -62,7 +62,7 @@ public class MusicBrainzLookupService
       }
 
       final var query = buildQuery(title, artist, album);
-      final var url = UriComponentsBuilder.fromHttpUrl(MUSIC_BRAINZ_URL).queryParam("query", query)
+      final var url = UriComponentsBuilder.fromUriString(MUSIC_BRAINZ_URL).queryParam("query", query)
           .queryParam("fmt", "json").queryParam("limit", 1).encode(StandardCharsets.UTF_8).toUriString();
 
       final var headers = new HttpHeaders();
