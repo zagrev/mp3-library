@@ -19,10 +19,10 @@ public class Mp3FileRecord {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, updatable = false, length = 2048)
+    @Column(name = "file_path_original", nullable = false, updatable = false, length = 2048)
     private String originalPath;
 
-    @Column(nullable = false, unique = true, length = 2048)
+    @Column(name = "file_path_current", nullable = false, unique = true, length = 2048)
     private String currentPath;
 
     @Column(length = 512)
@@ -37,7 +37,7 @@ public class Mp3FileRecord {
     @Column(length = 64)
     private String track;
 
-    @Column(length = 64)
+    @Column(name = "release_year", length = 64)
     private String year;
 
     @Column(length = 128)
