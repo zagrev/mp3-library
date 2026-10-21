@@ -32,7 +32,6 @@ import lombok.Data;
 public class Mp3FileRecord
   {
     private String album;
-    @Column(name = "album_artist")
     private String albumArtist;
     private String artist;
     @Column(length = 1000000)
@@ -46,41 +45,29 @@ public class Mp3FileRecord
     private String id;
     @Column(name = "file_path_original", length = 1000000)
     private String originalPath;
-    @Column(name = "original_title")
     private String originalTitle;
-    @Column(name = "original_artist")
     private String originalArtist;
-    @Column(name = "original_album")
     private String originalAlbum;
-    @Column(name = "original_album_artist")
     private String originalAlbumArtist;
-    @Column(name = "original_track")
     private Integer originalTrack;
-    @Column(name = "original_track_total")
     private Integer originalTrackTotal;
-    @Column(name = "original_disc_number")
     private Integer originalDiscNumber;
-    @Column(name = "original_disc_total")
     private Integer originalDiscTotal;
-    @Column(name = "original_composer")
     private String originalComposer;
-    @Column(name = "original_lyrics", length = 1000000)
+    @Column(length = 1000000)
     private String originalLyrics;
     @Column(name = "original_release_year")
     private String originalYear;
     @Column(name = "original_genre")
     private String originalGenre;
-    @Column(name = "original_comment_text", length = 1000000)
+    @Column(length = 1000000)
     private String originalCommentText;
-    @Column(name = "original_extra_metadata_json", length = 1000000)
+    @Column(length = 1000000)
     private String originalExtraMetadataJson;
     private String title;
     private Integer track;
-    @Column(name = "track_total")
     private Integer trackTotal;
-    @Column(name = "disc_number")
     private Integer discNumber;
-    @Column(name = "disc_total")
     private Integer discTotal;
     private String composer;
     @Column(length = 1000000)
@@ -88,7 +75,7 @@ public class Mp3FileRecord
     private Instant updatedAt;
     @Column(name = "release_year")
     private String year;
-    @Column(name = "extra_metadata_json", length = 1000000)
+    @Column(length = 1000000)
     private String extraMetadataJson;
 
     @PrePersist
