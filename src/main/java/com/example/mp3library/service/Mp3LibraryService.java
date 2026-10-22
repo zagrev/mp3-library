@@ -50,9 +50,72 @@ public class Mp3LibraryService
       this.objectMapper  = objectMapper;
     }
 
+    private Specification<Mp3FileRecord> buildSearchSpecification(String artist, String album, String title,
+        String pathContains)
+    {
+      return (root, query, cb) ->
+      {
+        final List<Predicate> predicates = new ArrayList<>();
+        if (StringUtils.hasText(artist))
+        {
+          predicates.add(cb.like(cb.lower(root.get("artist")), "%" + artist.toLowerCase() + "%"));
+        }
+        if (StringUtils.hasText(album))
+        {
+          predicates.add(cb.like(cb.lower(root.get("album")), "%" + album.toLowerCase() + "%"));
+        }
+        if (StringUtils.hasText(title))
+        {
+          predicates.add(cb.like(cb.lower(root.get("title")), "%" + title.toLowerCase() + "%"));
+        }
+        if (StringUtils.hasText(pathContains))
+        {
+          final var matcher = "%" + pathContains.toLowerCase() + "%";
+          predicates.add(cb.or(cb.like(cb.lower(root.get("originalPath")), matcher),
+              cb.like(cb.lower(root.get("currentPath")), matcher)));
+        }
+        return cb.and(predicates.toArray(Predicate[]::new));
+      };
+    }
+
+    @Transactional(readOnly = true)
+    public void checkLookupHealth()
+    {
+      lookupService.checkHealth();
+    }
+
     private String clean(String value)
     {
       return value == null ? "" : value.trim();
+    }
+
+    private String extractAdditionalMetadata(Tag tag)
+    {
+      final Map<String, String> metadata = new LinkedHashMap<>();
+      for (final var key : FieldKey.values())
+      {
+        if (CORE_FIELD_KEYS.contains(key))
+        {
+          continue;
+        }
+        final var value = readTag(tag, key);
+        if (StringUtils.hasText(value))
+        {
+          metadata.put(key.name(), value);
+        }
+      }
+      if (metadata.isEmpty())
+      {
+        return "{}";
+      }
+      try
+      {
+        return objectMapper.writeValueAsString(metadata);
+      }
+      catch (JsonProcessingException ex)
+      {
+        return "{}";
+      }
     }
 
     private MetadataSnapshot fallbackMetadata(Path filePath)
@@ -139,12 +202,6 @@ public class Mp3LibraryService
       return lookupService.lookup(record.getTitle(), record.getArtist(), record.getAlbum());
     }
 
-    @Transactional(readOnly = true)
-    public void checkLookupHealth()
-    {
-      lookupService.checkHealth();
-    }
-
     private void moveIfPossible(Path source, Path target) throws IOException
     {
       if (!Files.exists(source))
@@ -156,6 +213,23 @@ public class Mp3LibraryService
         Files.createDirectories(target.getParent());
       }
       Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    private int parseIntOrZero(String value)
+    {
+      if (!StringUtils.hasText(value))
+      {
+        return 0;
+      }
+      final var normalized = value.contains("/") ? value.substring(0, value.indexOf('/')) : value;
+      try
+      {
+        return Integer.parseInt(normalized.trim());
+      }
+      catch (NumberFormatException ex)
+      {
+        return 0;
+      }
     }
 
     private MetadataSnapshot readMetadata(Path filePath)
@@ -181,52 +255,6 @@ public class Mp3LibraryService
       }
     }
 
-    private String extractAdditionalMetadata(Tag tag)
-    {
-      final Map<String, String> metadata = new LinkedHashMap<>();
-      for (final var key : FieldKey.values())
-      {
-        if (CORE_FIELD_KEYS.contains(key))
-        {
-          continue;
-        }
-        final var value = readTag(tag, key);
-        if (StringUtils.hasText(value))
-        {
-          metadata.put(key.name(), value);
-        }
-      }
-      if (metadata.isEmpty())
-      {
-        return "{}";
-      }
-      try
-      {
-        return objectMapper.writeValueAsString(metadata);
-      }
-      catch (JsonProcessingException ex)
-      {
-        return "{}";
-      }
-    }
-
-    private int parseIntOrZero(String value)
-    {
-      if (!StringUtils.hasText(value))
-      {
-        return 0;
-      }
-      final var normalized = value.contains("/") ? value.substring(0, value.indexOf('/')) : value;
-      try
-      {
-        return Integer.parseInt(normalized.trim());
-      }
-      catch (NumberFormatException ex)
-      {
-        return 0;
-      }
-    }
-
     private String readTag(Tag tag, FieldKey key)
     {
       try
@@ -237,6 +265,20 @@ public class Mp3LibraryService
       {
         return "";
       }
+    }
+
+    private String sanitizeSortField(String requestedSortField)
+    {
+      if (!StringUtils.hasText(requestedSortField))
+      {
+        return "artist";
+      }
+
+      return switch (requestedSortField)
+      {
+      case "id", "artist", "album", "title", "track", "currentPath", "originalPath" -> requestedSortField;
+      default -> "artist";
+      };
     }
 
     private void saveOrUpdateFromFile(Path filePath)
@@ -327,48 +369,6 @@ public class Mp3LibraryService
           : Sort.by(safeSortField).ascending();
       final var pageable = PageRequest.of(safePage, safeSize, sort);
       return repository.findAll(buildSearchSpecification(artist, album, title, pathContains), pageable);
-    }
-
-    private String sanitizeSortField(String requestedSortField)
-    {
-      if (!StringUtils.hasText(requestedSortField))
-      {
-        return "artist";
-      }
-
-      return switch (requestedSortField)
-      {
-        case "id", "artist", "album", "title", "track", "currentPath", "originalPath" -> requestedSortField;
-        default -> "artist";
-      };
-    }
-
-    private Specification<Mp3FileRecord> buildSearchSpecification(String artist, String album, String title,
-        String pathContains)
-    {
-      return (root, query, cb) ->
-      {
-        final List<Predicate> predicates = new ArrayList<>();
-        if (StringUtils.hasText(artist))
-        {
-          predicates.add(cb.like(cb.lower(root.get("artist")), "%" + artist.toLowerCase() + "%"));
-        }
-        if (StringUtils.hasText(album))
-        {
-          predicates.add(cb.like(cb.lower(root.get("album")), "%" + album.toLowerCase() + "%"));
-        }
-        if (StringUtils.hasText(title))
-        {
-          predicates.add(cb.like(cb.lower(root.get("title")), "%" + title.toLowerCase() + "%"));
-        }
-        if (StringUtils.hasText(pathContains))
-        {
-          final var matcher = "%" + pathContains.toLowerCase() + "%";
-          predicates.add(cb.or(cb.like(cb.lower(root.get("originalPath")), matcher),
-              cb.like(cb.lower(root.get("currentPath")), matcher)));
-        }
-        return cb.and(predicates.toArray(Predicate[]::new));
-      };
     }
 
     private void setTag(Tag tag, FieldKey key, String value)

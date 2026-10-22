@@ -58,18 +58,42 @@ public class MusicBrainzLookupService
       return sb.toString();
     }
 
+    public void checkHealth()
+    {
+      final var query = "recording:\"test\"";
+      try
+      {
+        executeLookupRequest(query);
+      }
+      catch (final RestClientException ex)
+      {
+        LOGGER.warn("MusicBrainz health check failed.", ex);
+        throw new MetadataLookupUnavailableException("MusicBrainz lookup request failed.", ex);
+      }
+    }
+
+    private ResponseEntity<JsonNode> executeLookupRequest(String query)
+    {
+      final var url = UriComponentsBuilder.fromUriString(MUSIC_BRAINZ_URL).queryParam("query", query)
+          .queryParam("fmt", "json").queryParam("limit", 1).encode(StandardCharsets.UTF_8).toUriString();
+
+      final var headers = new HttpHeaders();
+      headers.set("User-Agent", "mp3-library/0.0.1 (local-dev)");
+      return restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), JsonNode.class);
+    }
+
     public Optional<MetadataSnapshot> lookup(String title, String artist, String album)
     {
       if (!StringUtils.hasText(title) && !StringUtils.hasText(artist) && !StringUtils.hasText(album))
       {
-        return Optional.empty();
+        throw new IllegalArgumentException("Lookup request contains no attributes to find.");
       }
 
       final var query = buildQuery(title, artist, album);
 
       try
       {
-        final ResponseEntity<JsonNode> response = executeLookupRequest(query);
+        final var response = executeLookupRequest(query);
         final var root = response.getBody();
         if (root == null || !root.has("recordings") || root.path("recordings").isEmpty())
         {
@@ -100,30 +124,6 @@ public class MusicBrainzLookupService
         LOGGER.warn("MusicBrainz lookup request failed for query: {}", query, ex);
         throw new MetadataLookupUnavailableException("MusicBrainz lookup request failed.", ex);
       }
-    }
-
-    public void checkHealth()
-    {
-      final var query = "recording:\"test\"";
-      try
-      {
-        executeLookupRequest(query);
-      }
-      catch (final RestClientException ex)
-      {
-        LOGGER.warn("MusicBrainz health check failed.", ex);
-        throw new MetadataLookupUnavailableException("MusicBrainz lookup request failed.", ex);
-      }
-    }
-
-    private ResponseEntity<JsonNode> executeLookupRequest(String query)
-    {
-      final var url = UriComponentsBuilder.fromUriString(MUSIC_BRAINZ_URL).queryParam("query", query)
-          .queryParam("fmt", "json").queryParam("limit", 1).encode(StandardCharsets.UTF_8).toUriString();
-
-      final var headers = new HttpHeaders();
-      headers.set("User-Agent", "mp3-library/0.0.1 (local-dev)");
-      return restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), JsonNode.class);
     }
 
     private String prefer(String candidate, String fallback)
